@@ -31,7 +31,8 @@ Description: Pipeline for Statistical Inference of Associations between
 Depends:
     R (>= 4.2.0),
     mlr3,
-    phyloseq
+    phyloseq,
+    ggplot2
 Imports:
     beanplot,
     glmnet,
@@ -57,7 +58,8 @@ Imports:
     mlr3learners,
     mlr3tuning,
     paradox,
-    lgr
+    lgr,
+    ggrepel
 License: GPL-3
 LazyData: true
 Encoding: UTF-8

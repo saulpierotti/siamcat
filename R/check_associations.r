@@ -225,7 +225,7 @@ check.associations <- function(siamcat, formula="feat~label", test='wilcoxon',
         # check the formula
         if (test=='wilcoxon' & formula!='feat~label'){
             warning("For confounder-corrected tests, SIAMCAT uses linear",
-                    " mixed effect models. Changing test to 'lm'!")
+                    " models. Changing test to 'lm'!")
             test <- 'lm'
         }
 
@@ -345,13 +345,15 @@ analyze.binary.markers <- function(feat, meta, label, param.list) {
             df.temp <- df.temp[sort(df.temp[[param.list$paired]],
                                     index.return=TRUE)$ix,]
         }
+        x <- df.temp[,'feat']
         x.pos <- df.temp[df.temp$label==positive.label,'feat']
         x.neg <- df.temp[df.temp$label==negative.label,'feat']
 
         # prevalence
+        pr.all <- mean(x > param.list$pr.cutoff)
         pr.n <- mean(x.neg >= param.list$pr.cutoff)
         pr.p <- mean(x.pos >=  param.list$pr.cutoff)
-        pr.shift <- c(pr.p - pr.n, pr.n, pr.p)
+        pr.shift <- c(pr.p - pr.n, pr.n, pr.p, pr.all)
 
         # AUC
         temp <- roc(cases = x.pos, controls=x.neg, ci = TRUE, direction = '<')
@@ -365,16 +367,16 @@ analyze.binary.markers <- function(feat, meta, label, param.list) {
         if (is.null(param.list$paired)){
             q.p <- quantile(x.pos, probs = param.list$probs.fc)
             q.n <- quantile(x.neg, probs = param.list$probs.fc)
-            fc <- sum(q.p - q.n) / length(q.p)
-        } else {
+            fc <- mean(q.p - q.n)
+        } else {wilcoxo.
             fc <- mean(x.pos-x.neg)
         }
 
         # p.val
         if (param.list$test=='wilcoxon'){
             if (is.null(param.list$paired)) {
-              p.val <- wilcox.test(formula=as.formula(param.list$formula),
-                                   data=df.temp, exact=FALSE)$p.value
+              p.val <- wilcox.test(x.pos, x.neg,
+                                   paired=FALSE, exact=FALSE)$p.value
             } else {
               p.val <- wilcox.test(x.pos, x.neg, paired=TRUE, 
                                    exact=FALSE)$p.value
@@ -400,8 +402,8 @@ analyze.binary.markers <- function(feat, meta, label, param.list) {
         return(c('fc' = fc, 'p.val' = p.val, 'auc' = aucs[2],
                     'auc.ci.l' = aucs[1], 'auc.ci.h' = aucs[3],
                     'pr.shift' = pr.shift[1], 'pr.n' = pr.shift[2],
-                    'pr.p' = pr.shift[3]))
-    }, FUN.VALUE = double(8)))
+                    'pr.p' = pr.shift[3], 'pr.all' = pr.shift[4]))
+    }, FUN.VALUE = double(9)))
     effect.size <- as.data.frame(effect.size)
     ### Apply multi-hypothesis testing correction
 
@@ -464,29 +466,33 @@ analyze.continuous.markes <- function(feat, meta, label, param.list) {
 
         df.temp$feat <- feat[x,rownames(df.temp)]
 
+        # prevalence
+        pr.all <- mean(df.temp[,'feat'] > param.list$pr.cutoff)
+
         cor.sp <- cor(df.temp$feat, df.temp$label, method='spearman')
 
         # p.val
         if (take.log) df.temp$feat <- log10(df.temp$feat + param.list$log.n0)
+        # this is kind of wrong, we want to use LM for simple covariates also
         if (param.list$formula=='feat~label'){
             fit <- lm(formula = as.formula(param.list$formula),
                         data=df.temp)
             res <- coefficients(summary(fit))
             p.val <- res[2,4]
-            fc <- res[2,1]
+            beta <- res[2,1]
         } else {
             fit <- suppressMessages(
                 lmer(formula=as.formula(param.list$formula),
                                 data=df.temp))
             res <- coefficients(summary(fit))
             p.val <- res[2,5]
-            fc <- res[2,1]
+            beta <- res[2,1]
         }
 
 
         pb$tick()
-        return(c('fc' = fc, 'p.val' = p.val, 'spearman' = cor.sp))
-    }, FUN.VALUE = double(3)))
+        return(c(beta=beta, p.val=p.val, spearman=cor.sp, pr.all=pr.all))
+    }, FUN.VALUE = double(4)))
     effect.size <- as.data.frame(effect.size)
     ### Apply multi-hypothesis testing correction
 
