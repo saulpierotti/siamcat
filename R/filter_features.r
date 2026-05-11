@@ -24,8 +24,9 @@
 #'
 #' @param feature.type string, on which type of features should the function
 #' work? Can be either \code{"original"}, \code{"filtered"}, or
-#' \code{"normalized"}. Please only change this paramter if you know what
-#' you are doing!
+#' \code{"normalized"}. By default filtered features are used if available,
+#' otherwise original features are used. Please only change this paramter 
+#' if you know what you are doing!
 #'
 #' @param verbose integer, control output: \code{0} for no output at all,
 #' \code{1} for only information about progress and success, \code{2} for
@@ -86,24 +87,34 @@
 #'     cutoff=0.05, feature.type='filtered')
 filter.features <- function(siamcat,
     filter.method = "abundance",
-    cutoff = 0.001,
-    rm.unmapped = TRUE,
-    feature.type='original',
+    cutoff=0.001,
+    rm.unmapped=TRUE,
+    feature.type=NULL,
     verbose = 1) {
 
     if (verbose > 1) message("+ starting filter.features")
     s.time <- proc.time()[3]
-
+    
     # checks
     if (!filter.method %in% c("abundance", "cum.abundance",
                                 "prevalence", "variance", "pass")) {
         stop("Unrecognized filter.method, exiting!\n")
     }
-    if (!feature.type %in% c('original', 'filtered', 'normalized')){
-        stop("Unrecognised feature type, exiting...\n")
+    if (!is.null(feature.type)){
+        if (!(feature.type %in% c('original', 'filtered', 'normalized'))){
+            stop("Unrecognised feature type, exiting...\n")
+        }
     }
     if (!is.logical(rm.unmapped)){
         stop("rm.unmapped should be logical, exiting...\n")
+    }
+
+    if (is.null(feature.type)) {
+        if (!is.null(filt_feat(siamcat, verbose=0))){
+            feature.type <- 'filtered'
+        } else {
+            feature.type <- 'original'
+        }
     }
 
     # get the right features
@@ -124,6 +135,7 @@ filter.features <- function(siamcat,
                 cutoff=cutoff, rm.unmapped=rm.unmapped,
                 feature.type=feature.type)
     } else if (feature.type == 'normalized'){
+        warning("You are filtering normalized features. This is usually not a good idea. I assume you know what you are doing.")
         # if not yet there, stop
         if (is.null(norm_feat(siamcat, verbose=0))){
             stop("Features have not yet been normalized, exiting...\n")
@@ -257,7 +269,7 @@ filter.features <- function(siamcat,
     }
 
     if (verbose == 1)
-        message("Features successfully filtered")
+        message("Features successfully filtered. ", length(f.idx), " features remaining.")
 
     return(siamcat)
 }

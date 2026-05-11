@@ -161,7 +161,7 @@ select.samples <- function(siamcat, filter, allowed.set = NULL,
     }
 
     if (verbose == 1)
-        message("Selecting samples finished")
+        message("Selecting samples finished. ", length(s.names), " samples remaining.")
 
     return(siamcat)
 }

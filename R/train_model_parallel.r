@@ -137,11 +137,17 @@
 #'
 #' # simple working example
 #' siamcat_example <- train.model(siamcat_example, method='lasso')
-train.model <- function(siamcat, method = "lasso",
+
+# work in progress to parallelize
+# probably better to start from scracth and use mlr3 parallelisation directly
+# remove parallel and pblapply deps in case
+train.model.parallel <- function(siamcat, method = "lasso",
     measure = "classif.acc", param.set = NULL,
     grid.size=11, min.nonzero=5, perform.fs = FALSE,
     param.fs = list(no_features = 100, method = "AUC", direction="absolute"),
-    feature.type='normalized', verbose = 1) {
+    feature.type='normalized', n.cores=NULL, cl=NULL,
+    lib = NULL, verbose = 1
+) {
 
     if (verbose > 1)
         message("+ starting train.model")
@@ -180,7 +186,6 @@ train.model <- function(siamcat, method = "lasso",
     data.split <- data_split(siamcat)
 
     # Create List to save models.
-    models.list <- list()
     num.runs <- data.split$num.folds * data.split$num.resample
 
     ## Create Learner
@@ -214,104 +219,107 @@ train.model <- function(siamcat, method = "lasso",
         }
     }
 
-    if (verbose == 1 || verbose == 2)
-        pb <- progress_bar$new(total = num.runs)
-
-    for (fold in seq_len(data.split$num.folds)) {
-        if (verbose > 2){
-            msg <- paste("+++ training on cv fold:", fold)
-            message(msg)
+    process.fold.repetition <- function(i, iterations, lib){
+        .libPaths(lib)
+        fold <- iterations[i, 'fold']
+        resampling <- iterations[i, 'resampling']
+        ## Prepare data
+        fold.name <- paste0("cv_fold", as.character(fold), "_rep",
+            as.character(resampling))
+        fold.exm.idx <-
+            match(data.split$training.folds[[resampling]][[fold]],
+                names(label$label))
+    
+        ### subselect examples for training
+        label.fac <- label$label
+        if (label$type == 'BINARY'){
+            label.fac <- factor(label.fac,  levels = sort(label$info))
         }
-
-        for (resampling in seq_len(data.split$num.resample)) {
-            if (verbose > 2){
-                msg <- paste("++++ repetition:", resampling)
-                message(msg)
-            }
-            ## Prepare data
-            fold.name <- paste0("cv_fold", as.character(fold), "_rep",
-                as.character(resampling))
-            fold.exm.idx <-
-                match(data.split$training.folds[[resampling]][[fold]],
-                    names(label$label))
-
-            ### subselect examples for training
-            label.fac <- label$label
-            if (label$type == 'BINARY'){
-                label.fac <- factor(label.fac,  levels = sort(label$info))
-            }
-            train.label <- label.fac[fold.exm.idx]
-            data <-
-                as.data.frame(t(feat)[fold.exm.idx,,drop=FALSE])
-            stopifnot(nrow(data) == length(train.label))
-            stopifnot(all(rownames(data) == names(train.label)))
-
-            if (perform.fs){
-                data <- perform.feature.selection(data, train.label,
-                    param.fs, verbose)
-            }
-            
-            if (ncol(data) < 2){
-              stop("Not enough features for training! Only ", ncol(data), 
-                   " feature found")
-            }
-            data$label <- train.label
-
-
-            if (label$type == 'BINARY' && data$label[1] != -1) {
-                data <- data[c(which(data$label == -1)[1],
-                    c(seq_len(nrow(data)))[-which(data$label == -1)[1]]), ]
-            }
-
-
-            ## create task
-            if (label$type == 'BINARY'){
-                task <- TaskClassif$new(id='classif', backend=data,
-                                        target='label', positive="1")
-            } else if (label$type == 'CONTINUOUS') {
-                task <- TaskRegr$new(id='regr', backend=data, target='label')
-            }
-            lrn.fold <- lrn$clone(deep=TRUE)
-
-            ## Train model
-            any.tuner <- unlist(lapply(lrn$param_set$values, FUN=class))
-            if (any(any.tuner=='TuneToken')){
-                instance <- tune(tnr("grid_search", resolution=grid.size),
-                    task = task,
-                    learner = lrn.fold,
-                    resampling = rsmp("cv", folds = 5),
-                    measures = msr(measure))
-                lrn.fold$param_set$values <- instance$result_learner_param_vals
-            }
-            model <- lrn.fold$train(task = task)
-            if (method %in% c('lasso', 'enet', 'ridge')){
-                model <- get.best.glmnet.lambda(model, measure,
-                                                min.nonzero, task)
-                s.idx <- which(model$model$lambda==model$param_set$values$s)
-                feat.weights <- -model$model$glmnet.fit$beta[,s.idx]
-            } else if (method %in% c('lasso_ll', 'ridge_ll')){
-                feat.weights <- t(model$model$W)[,1]
-                idx.intercept <- which(names(feat.weights) == 'Bias')
-                feat.weights <- feat.weights[-idx.intercept]
-            } else if (method == 'randomForest'){
-                feat.weights <- model$importance()
-            } else if (method == 'SVM'){
-                feat.weights <- rep(NA_real_, ncol(model$model$SV))
-                names(feat.weights) <- colnames(model$model$SV)
-            } else if (method == 'LSVM'){
-                feat.weights <- coef(model$model)
-                feat.weights <- feat.weights[-1]
-                names(feat.weights) <- colnames(model$model$SV)
-            }
-
-            # add feature weights to the model
-            bar <- bar + 1
-
-            models.list[[fold.name]] <- list(model=model, features=feat.weights)
-            if (verbose == 1 || verbose == 2)
-                pb$tick()
+        train.label <- label.fac[fold.exm.idx]
+        data <-
+            as.data.frame(t(feat)[fold.exm.idx,,drop=FALSE])
+        stopifnot(nrow(data) == length(train.label))
+        stopifnot(all(rownames(data) == names(train.label)))
+    
+        if (perform.fs){
+            data <- perform.feature.selection(data, train.label,
+                param.fs, verbose)
         }
+        
+        if (ncol(data) < 2){
+          stop("Not enough features for training! Only ", ncol(data), 
+               " feature found")
+        }
+        data$label <- train.label
+    
+    
+        if (label$type == 'BINARY' && data$label[1] != -1) {
+            data <- data[c(which(data$label == -1)[1],
+                c(seq_len(nrow(data)))[-which(data$label == -1)[1]]), ]
+        }
+    
+    
+        ## create task
+        if (label$type == 'BINARY'){
+            task <- TaskClassif$new(id='classif', backend=data,
+                                    target='label', positive="1")
+        } else if (label$type == 'CONTINUOUS') {
+            task <- TaskRegr$new(id='regr', backend=data, target='label')
+        }
+        lrn.fold <- lrn$clone(deep=TRUE)
+    
+        ## Train model
+        any.tuner <- unlist(lapply(lrn$param_set$values, FUN=class))
+        if (any(any.tuner=='TuneToken')){
+            instance <- tune(tnr("grid_search", resolution=grid.size),
+                task = task,
+                learner = lrn.fold,
+                resampling = rsmp("cv", folds = 5),
+                measures = msr(measure))
+            lrn.fold$param_set$values <- instance$result_learner_param_vals
+        }
+        model <- lrn.fold$train(task = task)
+        if (method %in% c('lasso', 'enet', 'ridge')){
+            model <- get.best.glmnet.lambda(model, measure,
+                                            min.nonzero, task)
+            s.idx <- which(model$model$lambda==model$param_set$values$s)
+            feat.weights <- -model$model$glmnet.fit$beta[,s.idx]
+        } else if (method %in% c('lasso_ll', 'ridge_ll')){
+            feat.weights <- t(model$model$W)[,1]
+            idx.intercept <- which(names(feat.weights) == 'Bias')
+            feat.weights <- feat.weights[-idx.intercept]
+        } else if (method == 'randomForest'){
+            feat.weights <- model$importance()
+        } else if (method == 'SVM'){
+            feat.weights <- rep(NA_real_, ncol(model$model$SV))
+            names(feat.weights) <- colnames(model$model$SV)
+        } else if (method == 'LSVM'){
+            feat.weights <- coef(model$model)
+            feat.weights <- feat.weights[-1]
+            names(feat.weights) <- colnames(model$model$SV)
+        }
+    
+        ret <- list()
+        ret[[fold.name]] <- list(model=model, features=feat.weights)
+        return(ret)
     }
+    
+    # add tests for cl and n.cores
+    if (is.null(cl)) {
+        if (is.null(n.cores)) {
+            n.cores <- min(parallel::detectCores(), 10)
+        }
+        if (verbose == 1) {
+            message("Using ", n.cores, " CPU cores.")
+        }
+        cl <- parallel::makeCluster(n.cores)
+    }
+
+    folds <- seq_len(data.split$num.folds)
+    resamplings <- seq_len(data.split$num.resample)
+    iterations <- expand.grid(fold=folds, resampling=resamplings)
+    
+    model.list <- pbapply::pblapply(seq_len(nrow(iterations)), process.fold.repetition, iterations=iterations, lib=lib, cl=cl)
 
     model_list(siamcat) <- list(
         models = models.list,
