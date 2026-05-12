@@ -404,7 +404,7 @@ std <- function(feat, sd.min.q=NULL, par=NULL, m=NULL, adj.sd=NULL){
 rank.std <- function(feat, sd.min.q=NULL, par=NULL, m=NULL, adj.sd=NULL){
     feat.rank <- colRanks(feat, preserveShape=TRUE, ties.method='average')
     dimnames(feat.rank) <- dimnames(feat)
-    ret <- std(eat.log, sd.min.q=sd.min.q, par=par, m=m, adj.sd=adj.sd)
+    ret <- std(feat.rank, sd.min.q=sd.min.q, par=par, m=m, adj.sd=adj.sd)
     return(ret)
 }
 
