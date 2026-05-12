@@ -230,7 +230,7 @@ normalize.features <- function(siamcat,
         if (norm.method == "log.unit" &&
                 (is.null(norm.param$n.p) ||
                         is.null(norm.param$norm.margin))) {
-            msg <- paste0("The log.std method requires the parameters n.p and", 
+            msg <- paste0("The log.unit method requires the parameters n.p and", 
                 "norm.margin, which are not supplied. Exiting ...")
             stop(msg)
         }
@@ -249,79 +249,29 @@ normalize.features <- function(siamcat,
         if (verbose > 2)
             message("+++ performing normalization")
         if (norm.method == "rank.unit") {
-            feat.rank <- colRanks(feat.red,
-                preserveShape = TRUE,
-                ties.method = 'average')
-            stopifnot(!any(is.na(feat.rank)))
-            feat.norm <- t(t(feat.rank) / sqrt(colSums(feat.rank ^ 2)))
-            dimnames(feat.norm) <- dimnames(feat.red)
+            fear.norm <- rank.unit(feat)
         } else if (norm.method == "log.clr") {
-            log.gm <- colMeans(log10(feat.red + norm.param$log.n0))
-            feat.norm <- t(t(log10(feat.red + norm.param$log.n0)) - log.gm)
+            feat.norm <- log.clr(feat.red, norm.param$log.n0)
         } else if (norm.method == "rank.std") {
-            feat.rank <- colRanks(feat.red,
-                preserveShape = TRUE,
-                ties.method = 'average')
-            dimnames(feat.rank) <- dimnames(feat.red)
-            m <- rowMeans(feat.rank)
-            s <- rowSds(feat.rank)
-            q <- quantile(s, norm.param$sd.min.q, names = FALSE)
-            stopifnot(q > 0)
-            feat.norm <- (feat.rank - m) / (s + q)
-            par$feat.mean <- m
-            par$feat.adj.sd <- s + q
+            ret <- rank.std(feat.red, norm.param$sd.min.q, par=par)
+            par <- ret$par
+            feat.norm <- ret$feat.norm
+            remove(ret)
         } else if (norm.method == "std") {
-            m <- rowMeans(feat.red)
-            s <- rowSds(feat.red)
-            q <- quantile(s, norm.param$sd.min.q, names = FALSE)
-            stopifnot(q > 0)
-            feat.norm <- (feat.red - m) / (s + q)
-            names(m) <- rownames(feat.red)
-            names(s) <- rownames(feat.red)
-            par$feat.mean <- m
-            par$feat.adj.sd <- s + q
+            ret <- std(feat.red, norm.param$sd.min.q, par=par)
+            par <- ret$par
+            feat.norm <- ret$feat.norm
+            remove(ret)
         } else if (norm.method == "log.std") {
-            feat.log <- log10(feat.red + norm.param$log.n0)
-            m <- rowMeans(feat.log)
-            s <- rowSds(feat.log)
-            q <- quantile(s, norm.param$sd.min.q, names = FALSE)
-            stopifnot(q > 0)
-            feat.norm <- (feat.log - m) / (s + q)
-            names(m) <- rownames(feat.log)
-            names(s) <- rownames(feat.log)
-            par$feat.mean <- m
-            par$feat.adj.sd <- s + q
+            ret <- log.std(feat.red, norm.param$sd.min.q, par=par)
+            par <- ret$par
+            feat.norm <- ret$feat.norm
+            remove(ret)
         } else if (norm.method == "log.unit") {
-            feat.log <- log10(feat.red + norm.param$log.n0)
-            if (norm.param$n.p == 1) {
-                norm.fun <- function(x) {
-                    x / sum(x)
-                }
-                par$norm.fun <- norm.fun
-                par$feat.norm.denom <- rowSums(feat.log)
-            } else if (norm.param$n.p == 2) {
-                norm.fun <- function(x) {
-                    x / sqrt(sum(x ^ 2))
-                }
-                par$norm.fun <- norm.fun
-                par$feat.norm.denom <- sqrt(rowSums(feat.log ^ 2))
-            } else {
-                stop("Unknown vector norm, must be either 1 or 2. Exiting...")
-            }
-            if (norm.param$norm.margin == 1) {
-                feat.norm <- t(apply(feat.log, 1, FUN = norm.fun))
-            } else if (norm.param$norm.margin == 2) {
-                feat.norm <- apply(feat.log, 2, FUN = norm.fun)
-            } else if (norm.param$norm.margin == 3) {
-                par$global.norm <- max(feat.log)
-                feat.norm <- feat.log / max(feat.log)
-            } else {
-                stop(
-                    "Unknown margin for normalization, must be either
-                    1 (for features), 2 (for samples), or 3 (global).
-                    Exiting..."
-                )
-            }
+            ret <- log.unit(feat.red, norm.param$log.n0, norm.param$n.p, norm.param$norm.margin, par=par)
+            par <- ret$par
+            feat.norm <- ret$feat.norm
+            remove(ret)
         } else if (norm.method == "pass"){
             feat.norm <- feat.red
         }
@@ -352,94 +302,33 @@ normalize.features <- function(siamcat,
         if (verbose > 2)
             message("+++ performing normalization")
         if (norm.param$norm.method == "rank.unit") {
-            feat.rank <- colRanks(feat.red,
-                preserveShape = TRUE,
-                ties.method = 'average')
-            stopifnot(!any(is.na(feat.rank)))
-            feat.norm <- t(t(feat.rank) / sqrt(colSums(feat.rank ^ 2)))
-            dimnames(feat.norm) <- dimnames(feat.red)
-
+            feat.norm <- rank.unit(feat)
         } else if (norm.param$norm.method == "log.clr") {
-            gm <- exp(colMeans(log(feat.red + norm.param$log.n0)))
-            feat.norm <- log(t(t((feat.red + norm.param$log.n0)) / gm))
-
+            feat.norm <- log.clr(feat.red, norm.param$log.n0)
         } else if (norm.param$norm.method == "rank.std") {
-            stopifnot(
-                !is.null(norm.param$feat.mean) &&
-                    !is.null(norm.param$feat.adj.sd) &&
-                    all(
-                        names(norm.param$feat.mean) ==
-                            row.names(feat.red)
-                    ) && all(
-                        names(norm.param$feat.adj.s) ==
-                            row.names(feat.red)
-                    )
+            ret <- rank.std(
+                feat.red,
+                m=norm.param$feat.mean, adj.s=norm.param$feat.adj.s
             )
-            feat.rank <- colRanks(feat.red,
-                preserveShape = TRUE,
-                ties.method = 'average')
-            dimnames(feat.rank) <- dimnames(feat.red)
-            feat.norm <- (feat.rank - norm.param$feat.mean) /
-                norm.param$feat.adj.s
-
+            feat.norm <- ret$feat.norm
+            remove(ret)
         } else if (norm.param$norm.method == "std") {
-            stopifnot(
-                !is.null(norm.param$feat.mean) &&
-                    !is.null(norm.param$feat.adj.sd) &&
-                    all(
-                        names(norm.param$feat.mean) == row.names(feat.red)
-                    ) &&
-                    all(
-                        names(norm.param$feat.adj.s) == row.names(feat.red)
-                    )
-            )
-            feat.norm <- (feat.red - norm.param$feat.mean) /
-                norm.param$feat.adj.sd
+            ret <- std(feat.red, m=norm.param$feat.mean, adj.s=norm.param$feat.adj.sd)
+            feat.norm <- ret$feat.norm
+            remove(ret)
         } else if (norm.param$norm.method == "log.std") {
-            stopifnot(
-                !is.null(norm.param$log.n0) &&
-                    !is.null(norm.param$feat.mean) &&
-                    !is.null(norm.param$feat.adj.sd) &&
-                    all(
-                        names(norm.param$feat.mean) == row.names(feat.red)
-                    ) &&
-                    all(
-                        names(norm.param$feat.adj.s) == row.names(feat.red)
-                    )
-            )
-            feat.log <- log10(feat.red + norm.param$log.n0)
-            feat.norm <- (feat.log - norm.param$feat.mean) /
-                norm.param$feat.adj.sd
-
+            ret <- log.std(feat.red, norm.param$log.n0, m=norm.param$feat.mean, adj.s=norm.param$feat.adj.sd)
+            par <- ret$par
+            feat.norm <- ret$feat.norm
+            remove(ret)
         } else if (norm.param$norm.method == "log.unit") {
-            stopifnot(
-                !is.null(norm.param$log.n0) &&
-                    !is.null(norm.param$norm.margin) &&
-                    norm.param$norm.margin %in%
-                    c(1, 2, 3) && ((
-                        norm.param$norm.margin == 1 &&
-                            !is.null(norm.param$feat.norm.denom) &&
-                            all(
-                                names(norm.param$feat.norm.denom) ==
-                                    row.names(feat.red)
-                            )
-                    ) || (
-                        norm.param$norm.margin == 2 &&
-                            !is.null(norm.param$norm.fun)
-                    ) || (
-                        norm.param$norm.margin ==
-                            3 && !is.null(norm.param$global.norm)
-                    )
-                    )
+            ret <- log.unit(
+                feat, norm.param$log.n0,
+                norm.param$n.p, norm.param$norm.margin, global.norm=norm.param$global.norm,
+                feat.norm.denom=norm.param$feat.norm.denom
             )
-            feat.log <- log10(feat.red + norm.param$log.n0)
-            if (norm.param$norm.margin == 1) {
-                feat.norm <- feat.log / norm.param$feat.norm.denom
-            } else if (norm.param$norm.margin == 2) {
-                feat.norm <- apply(feat.log, 2, FUN = norm.param$norm.fun)
-            } else if (norm.param$norm.margin == 3) {
-                feat.norm <- feat.log / norm.param$global.norm
-            }
+            feat.norm <- ret$feat.norm
+            remove(ret)
         } else if (norm.param$norm.method == "pass"){
             feat.norm <- feat.red
         }
@@ -451,7 +340,6 @@ normalize.features <- function(siamcat,
         stopifnot(!any(is.na(feat.norm)))
         par <- norm.param
     }
-
     norm_feat(siamcat) <- list(
         norm.feat=feat.norm,
         norm.param=par)
@@ -465,4 +353,126 @@ normalize.features <- function(siamcat,
     if (verbose == 1)
         message("Features normalized successfully.")
     return(siamcat)
+}
+
+log.clr <- function(feat, log.n0){
+    log.gm <- colMeans(log10(feat + log.n0))
+    feat.norm <- t(t(log10(feat + log.n0)) - log.gm)
+    return(feat.norm)
+}
+
+rank.unit <- function(feat){
+    feat.rank <- colRanks(feat, preserveShape=TRUE, ties.method='average')
+    stopifnot(!any(is.na(feat.rank)))
+    feat.norm <- t(t(feat.rank) / sqrt(colSums(feat.rank ^ 2)))
+    dimnames(feat.norm) <- dimnames(feat)
+    return(feat.norm)
+}
+
+std <- function(feat, sd.min.q=NULL, par=NULL, m=NULL, adj.sd=NULL){
+    stopifnot(is.null(adj.sd) == is.null(m))
+    stopifnot(is.null(par) != is.null(m))
+    stopifnot(is.null(sd.min.q) == is.null(par))
+    if (is.null(adj.sd) & is.null(m) & !is.null(par) & !is.null(sd.min.q)) {
+        m <- rowMeans(feat)
+        s <- rowSds(feat)
+        stopifnot(!is.na(sd.min.q))
+        q <- quantile(s, sd.min.q, names=FALSE)
+        stopifnot(q > 0)
+        adj.sd <- s + q
+        names(m) <- rownames(feat)
+        names(adj.sd) <- rownames(feat)
+        par$feat.mean <- m
+        par$feat.adj.sd <- adj.sd
+    } else {
+        stopifnot(
+            !is.null(m) &&
+            !is.null(adj.sd) &&
+            all(
+                names(m) == row.names(feat)
+            ) &&
+            all(
+                names(adj.s) == row.names(feat)
+            )
+        )
+    }
+    feat.norm <- (feat - m) / adj.sd
+    ret <- list(feat.norm=feat.norm, par=par)
+    return(ret)
+}
+
+rank.std <- function(feat, sd.min.q=NULL, par=NULL, m=NULL, adj.sd=NULL){
+    feat.rank <- colRanks(feat, preserveShape=TRUE, ties.method='average')
+    dimnames(feat.rank) <- dimnames(feat)
+    ret <- std(eat.log, sd.min.q=sd.min.q, par=par, m=m, adj.sd=adj.sd)
+    return(ret)
+}
+
+log.std <- function(feat, log.n0, sd.min.q=NULL, par=NULL, m=NULL, adj.sd=NULL){
+    feat.log <- log10(feat + log.n0)
+    dimnames(feat.log) <- dimnames(feat)
+    ret <- std(feat.log, sd.min.q=sd.min.q, par=par, m=m, adj.sd=adj.sd)
+    return(ret)
+}
+
+log.unit <- function(feat, log.n0, n.p, norm.margin, par=NULL, global.norm=NULL, feat.norm.denom=NULL){
+    stopifnot(!is.null(log.n0))
+    stopifnot(!is.null(norm.margin) & norm.margin %in% 1:3)
+    stopifnot(!(is.null(n.p) & norm.margin!=3))
+
+    feat.log <- log10(feat.red + log.n0)
+
+    if (!is.null(par) & is.null(global.norm) & is.null(feat.norm.denom)) {
+        if (n.p == 1) {
+            norm.fun <- function(x) {
+                x / sum(x)
+            }
+            par$norm.fun <- norm.fun
+            par$feat.norm.denom <- rowSums(feat.log)
+        } else if (n.p == 2) {
+            norm.fun <- function(x) {
+                x / sqrt(sum(x ^ 2))
+            }
+            par$norm.fun <- norm.fun
+            par$feat.norm.denom <- sqrt(rowSums(feat.log ^ 2))
+        } else {
+            stop("Unknown vector norm, must be either 1 or 2. Exiting...")
+        }
+        if (norm.margin == 1) {
+            feat.norm <- t(apply(feat.log, 1, FUN = norm.fun))
+        } else if (norm.margin == 2) {
+            feat.norm <- apply(feat.log, 2, FUN = norm.fun)
+        } else if (norm.margin == 3) {
+            par$global.norm <- max(feat.log)
+            feat.norm <- feat.log / max(feat.log)
+        } else {
+            stop(
+                "Unknown margin for normalization, must be either
+                1 (for features), 2 (for samples), or 3 (global).
+                Exiting..."
+            )
+        }
+    } else {
+        if (norm.margin == 1) {
+            stopifnot(
+                !is.null(feat.norm.denom) & all(
+                    names(feat.norm.denom) == row.names(feat)
+                )
+            )
+            feat.norm <- feat.log / feat.norm.denom
+        } else if (norm.margin == 2) {
+            stop("Frozen normalization is not meaningful within samples (MARGIN=2).")
+        } else if (norm.margin == 3) {
+            stopifnot(!is.null(global.norm))
+            feat.norm <- feat.log / global.norm
+        } else {
+            stop(
+                "Unknown margin for normalization, must be either
+                1 (for features), 2 (for samples), or 3 (global).
+                Exiting..."
+            )
+        }
+    }
+    ret <- list(feat.norm=feat.norm, par=par)
+    return(ret)
 }
