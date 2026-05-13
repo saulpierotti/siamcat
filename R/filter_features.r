@@ -262,7 +262,7 @@ filter.features <- function(siamcat,
     }
 
     if (verbose == 1)
-        message("Features successfully filtered")
+        message("Features successfully filtered. ", length(f.idx), " features remaining.")
 
     return(siamcat)
 }
