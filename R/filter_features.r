@@ -24,8 +24,8 @@
 #'
 #' @param feature.type string, on which type of features should the function
 #' work? Can be either \code{"original"}, \code{"filtered"}, or
-#' \code{"normalized"}. By default filtered features are used if available,
-#' otherwise original features are used.
+#' \code{"normalized"}. If \code{NULL} (default) filtered features are used if
+#' available, otherwise original features are used.
 #' Please only change this parameter if you know what you are doing!
 #'
 #' @param verbose integer, control output: \code{0} for no output at all,
@@ -89,7 +89,7 @@ filter.features <- function(siamcat,
     filter.method = "abundance",
     cutoff = 0.001,
     rm.unmapped = TRUE,
-    feature.type='original',
+    feature.type = NULL,
     verbose = 1) {
 
     if (verbose > 1) message("+ starting filter.features")
@@ -99,6 +99,21 @@ filter.features <- function(siamcat,
     if (!filter.method %in% c("abundance", "cum.abundance",
                                 "prevalence", "variance", "pass")) {
         stop("Unrecognized filter.method, exiting!\n")
+    }
+    if (is.null(feature.type)){
+        if (!is.null(filt_feat(siamcat, verbose=0))){
+            if (verbose == 1) message(
+                "feature.type not specified, but filtered features",
+                " are available, using those for filtering."
+            )
+            feature.type <- "filtered"
+        } else {
+            if (verbose == 1) message(
+                "feature.type not specified and filtered features are not",
+                " available, using original features for filtering."
+            )
+            feature.type <- "original"
+        }
     }
     if (!feature.type %in% c('original', 'filtered', 'normalized')){
         stop("Unrecognised feature type, exiting...\n")
