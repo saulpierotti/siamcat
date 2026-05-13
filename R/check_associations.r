@@ -367,7 +367,7 @@ analyze.binary.markers <- function(feat, meta, label, param.list) {
         if (is.null(param.list$paired)){
             q.p <- quantile(x.pos, probs = param.list$probs.fc)
             q.n <- quantile(x.neg, probs = param.list$probs.fc)
-            fc <- sum(q.p - q.n) / length(q.p)
+            fc <- mean(q.p - q.n)
         } else {
             fc <- mean(x.pos-x.neg)
         }
