@@ -125,6 +125,10 @@ filter.features <- function(siamcat,
                 cutoff=cutoff, rm.unmapped=rm.unmapped,
                 feature.type=feature.type)
     } else if (feature.type == 'normalized'){
+        warning(
+            "You are filtering normalized features. This is usually ",
+            "not a good idea. I assume you know what you are doing."
+        )
         # if not yet there, stop
         if (is.null(norm_feat(siamcat, verbose=0))){
             stop("Features have not yet been normalized, exiting...\n")
