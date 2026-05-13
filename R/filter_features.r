@@ -16,7 +16,7 @@
 #' one of these: \code{c('abundance', 'cum.abundance', 'prevalence',
 #' 'variance', 'pass')}, defaults to \code{'abundance'}
 #'
-#' @param cutoff float, abundace, prevalence, or variance cutoff, defaults
+#' @param cutoff float, abundance, prevalence, or variance cutoff, defaults
 #' to \code{0.001} (see Details below)
 #'
 #' @param rm.unmapped boolean, should unmapped reads be discarded?, defaults to
@@ -24,8 +24,9 @@
 #'
 #' @param feature.type string, on which type of features should the function
 #' work? Can be either \code{"original"}, \code{"filtered"}, or
-#' \code{"normalized"}. Please only change this paramter if you know what
-#' you are doing!
+#' \code{"normalized"}. By default filtered features are used if available,
+#' otherwise original features are used.
+#' Please only change this parameter if you know what you are doing!
 #'
 #' @param verbose integer, control output: \code{0} for no output at all,
 #' \code{1} for only information about progress and success, \code{2} for
