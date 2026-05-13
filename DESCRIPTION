@@ -34,6 +34,7 @@ Depends:
     phyloseq,
     ggplot2
 Imports:
+    ragg,
     ggrepel,
     beanplot,
     glmnet,
