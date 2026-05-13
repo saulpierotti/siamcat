@@ -31,8 +31,10 @@ Description: Pipeline for Statistical Inference of Associations between
 Depends:
     R (>= 4.2.0),
     mlr3,
-    phyloseq
+    phyloseq,
+    ggplot2
 Imports:
+    ggrepel,
     beanplot,
     glmnet,
     graphics,
