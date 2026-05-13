@@ -68,7 +68,14 @@ summarize.features <- function(siamcat, level = "g__",
 
     if (verbose > 2) message("+++ summarizing on level: ",level)
 
-    if (!feature.type %in% c('original', 'filtered', 'normalized')){
+    if (feature.type == "normalized") {
+        stop(
+            "Summarisation of normalized features will produce nonsensical",
+            "outputs and so it is not allowed."
+        )
+    }
+
+    if (!feature.type %in% c('original', 'filtered')){
         stop("Unrecognised feature type, exiting...\n")
     }
     # get the right features
@@ -79,11 +86,6 @@ summarize.features <- function(siamcat, level = "g__",
             stop('Features have not yet been filtered, exiting...\n')
         }
         feat <- get.filt_feat.matrix(siamcat)
-    } else if (feature.type == 'normalized'){
-        if (is.null(norm_feat(siamcat, verbose=0))){
-            stop('Features have not yet been normalized, exiting...\n')
-        }
-        feat <- get.norm_feat.matrix(siamcat)
     }
 
     if (is.null(tax_table(physeq(siamcat), errorIfNULL = FALSE))){
@@ -179,10 +181,6 @@ summarize.features <- function(siamcat, level = "g__",
         filt_feat(siamcat) <- list(
             filt.feat=otu_table(summarized.feat,taxa_are_rows = TRUE),
             filt.param=filt_params(siamcat))
-    } else if (feature.type == 'normalized'){
-        norm_feat(siamcat) <- list(
-            norm.feat=otu_table(summarized.feat,taxa_are_rows = TRUE),
-            norm.param=norm_params(siamcat))
     }
 
     e.time <- proc.time()[3]
@@ -192,7 +190,7 @@ summarize.features <- function(siamcat, level = "g__",
         message(msg)
     }
     if (verbose == 1)
-        message("Summarized features successfully.")
+        message("Summarized features successfully. ", nrow(summarized.feat), " resulting features.")
 
     return(siamcat)
 }
