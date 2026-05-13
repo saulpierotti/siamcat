@@ -139,11 +139,6 @@ volcano.plot <- function(
         "none" = "p"
     )[[assoc.param$mult.corr]]
 
-    line.size <- 0.5
-    half.line <- font.size / 2
-    rel.small <- 12 / 14
-    small.size <- rel.small * font.size
-
     plot <- ggplot(
         associations,
         aes(
@@ -164,12 +159,6 @@ volcano.plot <- function(
             yintercept = -log10(assoc.param$alpha),
             color = "gray", lty = "dashed", lwd = 0.5
         ) +
-        annotate(
-            "text",
-            x = Inf, y = -log10(assoc.param$alpha),
-            label = deparse(bquote(alpha ~ "=" ~ .(assoc.param$alpha))),
-            color = "gray40", parse = TRUE, hjust = 1, vjust = -1
-        ) +
         scale_fill_manual(
             values = col, breaks = names(col),
             guide = guide_legend(override.aes = list(size = 6))
@@ -179,47 +168,17 @@ volcano.plot <- function(
             x = xlab, y = bquote(-log[10](italic(.(mult.corr.label)))),
             size = "Prevalence", fill = fill_lab
         ) +
-        theme_grey(font.size) +
-        theme(
-            line = element_line(
-                color = "black", linetype = 1,
-                lineend = "butt", linewidth = line.size
-            ),
-            text = element_text(
-                size = font.size, hjust = 0.5, vjust = 0.5, angle = 0,
-                lineheight = .9, margin = margin(), debug = FALSE
-            ),
-            axis.line = element_blank(),
-            axis.text = element_text(color = "black", size = small.size),
-            axis.text.x = element_text(
-                margin = margin(t = small.size / 4), vjust = 1
-            ),
-            axis.text.y = element_text(
-                margin = margin(r = small.size / 4), hjust = 1
-            ),
-            axis.ticks = element_line(color = "black", linewidth = line.size),
-            axis.ticks.length = unit(half.line / 2, "pt"),
-            axis.title.x = element_text(
-                margin = margin(t = half.line / 2), vjust = 1
-            ),
-            axis.title.y = element_text(
-                angle = 90, margin = margin(r = half.line / 2), vjust = 1
-            ),
-            panel.background = element_blank(),
-            panel.border = element_rect(color = "black", linewidth = line.size),
-            panel.grid = element_blank(),
-            legend.background = element_blank(),
-            legend.spacing = unit(font.size, "pt"),
-            legend.margin = margin(0, 0, 0, 0),
-            legend.key = element_blank(),
-            legend.key.size = unit(1.1 * font.size, "pt"),
-            legend.text = element_text(size = rel(rel.small)),
-            legend.title = element_text(hjust = 0),
-            legend.box.background = element_blank(),
-            legend.box.spacing = unit(font.size, "pt"),
-            plot.margin = margin(half.line, half.line, half.line, half.line),
-            complete = TRUE
-        )
+        theme_siamcat(font.size)
+
+    # compute maximum y (hard to do a priori because of ggrepel)
+    # this is for shifting the annotation of relative units to the plot area
+    y_span <- diff(layer_scales(p)$y$range$range)
+    plot <- plot + annotate(
+        "text",
+        x = Inf, y = -log10(assoc.param$alpha) + 0.02*y_span,
+        label = deparse(bquote(alpha ~ "=" ~ .(assoc.param$alpha))),
+        color = "gray40", parse = TRUE, hjust = 1, vjust = 0
+    ) +
 
     if (nrow(associations.to.label) != 0) {
         plot <- plot + scale_y_continuous(
