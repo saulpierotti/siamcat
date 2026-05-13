@@ -55,8 +55,8 @@
 #'
 #' # Simple working example
 #' check.confounders(siamcat_example, './conf_plot.pdf')
-check.confounders <- function(siamcat, fn.plot, meta.in = NULL,
-    feature.type='filtered', verbose = 1) {
+check.confounders <- function(siamcat, fn.plot=NULL, meta.vars=NULL,
+    feature.type='filtered', verbose=1) {
 
     if (is.null(fn.plot)) stop("Parameter 'fn.plot' is needed!")
     if (verbose > 1) message("+ starting check.confounders")
@@ -67,6 +67,14 @@ check.confounders <- function(siamcat, fn.plot, meta.in = NULL,
             " classification tasks")
     }
     meta <- meta(siamcat)
+
+    if (!is.null(meta.vars)) {
+        if (!(all(meta.vars %in% colnames(meta)))) {
+            stop("meta.vars contains invalid names which are not columns of the metadata table.")
+        }
+        meta <- meta[,colnames(meta) %in% meta.vars]
+    }
+
     # get features
     if (feature.type == 'original'){
         feat <- get.orig_feat.matrix(siamcat)
@@ -86,16 +94,6 @@ check.confounders <- function(siamcat, fn.plot, meta.in = NULL,
     }
     meta <- factorize.metadata(meta, verbose) # creates data.frame
 
-    # check validity of input metadata conditions
-    if (!is.null(meta.in)){
-    if (!all(meta.in %in% colnames(meta))){
-        meta.in <- meta.in[which(meta.in %in% colnames(meta))]
-        warning(paste0("Some specified metadata were not in metadata file.\n",
-                        "Continuing with: ",  paste(c(meta.in), collapse=" ")))
-    }
-        meta <- meta[,meta.in]
-    }
-
     # remove nested variables
     indep <- vapply(colnames(meta), FUN=function(x) {
         return(condentropy(label$label, discretize(meta[,x])))},
@@ -106,7 +104,7 @@ check.confounders <- function(siamcat, fn.plot, meta.in = NULL,
                 "\n++ are nested inside the label and ",
                 "have been removed from this analysis")
     }
-    meta <- meta[,names(which(indep != 0))]
+    meta <- meta[,names(which(indep != 0)), drop=FALSE]
 
     # remove metavariables with less than 2 levels
     n.levels <- vapply(meta,
@@ -118,7 +116,7 @@ check.confounders <- function(siamcat, fn.plot, meta.in = NULL,
             message("++ remove metadata variables, since all ",
                 "subjects have the same value\n\t", s.name)
         }
-        meta <- meta[,which(n.levels > 1)]
+        meta <- meta[,which(n.levels > 1), drop=FALSE]
     }
 
     if (ncol(meta) > 10){
