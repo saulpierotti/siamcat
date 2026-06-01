@@ -111,7 +111,7 @@ volcano.plot <- function(
         names(col) <- c("Positive", "Negative", "n. s.")
         associations$class <- ifelse(
             associations$p.adj < assoc.param$alpha,
-            ifelse(associations$fc > 0, case.label, control.label),
+            ifelse(associations$beta > 0, "Positive", "Negative"),
             ns.label
         )
         associations$eff <- associations$beta
@@ -172,13 +172,13 @@ volcano.plot <- function(
 
     # compute maximum y (hard to do a priori because of ggrepel)
     # this is for shifting the annotation of relative units to the plot area
-    y_span <- diff(layer_scales(p)$y$range$range)
+    y_span <- diff(layer_scales(plot)$y$range$range)
     plot <- plot + annotate(
         "text",
         x = Inf, y = -log10(assoc.param$alpha) + 0.02*y_span,
         label = deparse(bquote(alpha ~ "=" ~ .(assoc.param$alpha))),
         color = "gray40", parse = TRUE, hjust = 1, vjust = 0
-    ) +
+    )
 
     if (nrow(associations.to.label) != 0) {
         plot <- plot + scale_y_continuous(
