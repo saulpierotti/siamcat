@@ -71,7 +71,7 @@ check.confounders.ggplot <- function(siamcat, meta.vars=NULL,
     meta <- cleanup.colnames(meta)
 
     # THIRD PLOT(S) - original confounder check descriptive stat plots
-    confounders.descriptive.plots(meta, label, font.size, verbose)
+    confounders.descriptive.plots.ggplot(meta, label, font.size, verbose)
 
     e.time <- proc.time()[3]
     if (verbose > 1) {
@@ -87,7 +87,7 @@ check.confounders.ggplot <- function(siamcat, meta.vars=NULL,
 }
 
 #'@keywords internal
-confounders.descriptive.plots <- function(meta, label, font.size, verbose) {
+confounders.descriptive.plots.ggplot <- function(meta, label, font.size, verbose) {
     cases <- which(label$label == max(label$info))
     controls <- which(label$label == min(label$info))
     p.lab <- names(which(label$info == max(label$info)))

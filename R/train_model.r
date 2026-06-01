@@ -21,7 +21,8 @@
 #'
 #' @param measure character, specifies the model selection criterion during
 #' internal cross-validation, see \link[mlr3]{mlr_measures} for more details,
-#' defaults to \code{'classif.acc'}
+#' defaults to \code{'NULL'}, which uses 'classif.acc' for classification and 
+#' 'regr.rmse' for regression problems.
 #'
 #' @param param.set list, set of extra parameters for mlr, see below for
 #' details, defaults to \code{NULL}
@@ -138,7 +139,7 @@
 #' # simple working example
 #' siamcat_example <- train.model(siamcat_example, method='lasso')
 train.model <- function(siamcat, method = "lasso",
-    measure = "classif.acc", param.set = NULL,
+    measure = NULL, param.set = NULL,
     grid.size=11, min.nonzero=5, perform.fs = FALSE,
     param.fs = list(no_features = 100, method = "AUC", direction="absolute"),
     feature.type='normalized', verbose = 1) {
@@ -268,8 +269,14 @@ train.model <- function(siamcat, method = "lasso",
             if (label$type == 'BINARY'){
                 task <- TaskClassif$new(id='classif', backend=data,
                                         target='label', positive="1")
+                if (is.null(measure)) {
+                    measure <- "classif.acc"
+                }
             } else if (label$type == 'CONTINUOUS') {
                 task <- TaskRegr$new(id='regr', backend=data, target='label')
+                if (is.null(measure)) {
+                    measure <- "regr.rmse"
+                }
             }
             lrn.fold <- lrn$clone(deep=TRUE)
 
