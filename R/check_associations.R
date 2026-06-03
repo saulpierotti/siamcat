@@ -19,9 +19,14 @@
 #' @param formula string, formula used for testing, see Details for more 
 #' information, defaults to \code{"feat~label"}
 #' 
+#' @param formula.null string, formula used for the null model in lm and lmer for
+#' likelyhood ratio testing, see Details for more 
+#' information, defaults to \code{"feat~1"}
+#' 
 #' @param test string, statistical test used for the association testing, can
-#' be either \code{'wilcoxon'} or \code{'lm'}, see Details for more 
-#' information, defaults to \code{'wilcoxon'}
+#' be either \code{'wilcoxon'}, \code{'lm'}, or \code{'lmer'} see Details for more 
+#' information, defaults to \code{NULL}, which uses the Wilcoxon test for binary labels
+#' and a linear model for continuous labels
 #'
 #' @param alpha float, significance level, defaults to \code{0.05}
 #'
@@ -59,7 +64,7 @@
 #' @section Statistical testing:
 #' The function uses the Wilcoxon test as default statistical test for binary 
 #' classification problems. Alternatively, a simple linear model (as 
-#' implemented in \link[stats]{lm}) can be used as well. For regression 
+#' implemented in \link[stats]{lm}) or a mixed-effect model (\link[lme4]{lmer}) can be used as well. For regression 
 #' problems, the function defaults to the linear model.
 #' 
 #' @section Effect sizes:
@@ -77,10 +82,12 @@
 #' 
 #' @section Confounder-corrected testing:
 #' To correct for possible confounders while testing for association, the 
-#' function uses linear mixed effect models as implemented in the 
-#' \link{lmerTest} package. To do so, the test formula needs to be adjusted 
+#' function uses linear or linear mixed effect models as implemented in the 
+#' \link{stats} and \link{lme4} packages. To do so, the test formula needs to be adjusted 
 #' to include the confounder. For example, when correcting for the metadata 
-#' information \code{Sex}, the formula would be: 
+#' information \code{Sex} as a fixed effect, the formula would be: 
+#' \code{'feat~label+Sex'} (see also the example below).
+#' To treat sex as a random effect instead:
 #' \code{'feat~label+(1|Sex)'} (see also the example below).
 #' 
 #' Please note that modifying the formula parameter in this function might
@@ -90,7 +97,7 @@
 #' For paired testing, e.g. when the same patient has been sampled before and
 #' after an intervention, the `paired` parameter can be supplied to the 
 #' function. This indicated a column in the metadata table that holds the 
-#' information about pairing.
+#' information about pairing. Note: this is applicable only for the Wilcoxon test.
 #' 
 #' @return object of class \link{siamcat-class} with the slot 
 #' \code{associations} filled
@@ -111,17 +118,19 @@
 #' #
 #' # this is not run during checks
 #' # siamcat_example <- check.associations(siamcat_example, 
-#' #     formula='feat~label+(1|Sex)', test='lm')
+#' #     formula='feat~label+Sex', formula.null='feat~Sex', test='lm')
 #' 
 #' # Paired testing
 #' #
 #' # this is not run during checks
 #' # siamcat_paired <- check.associations(siamcat_paired, 
 #' #     paired='Individual_ID')
-check.associations <- function(siamcat, formula="feat~label", test='wilcoxon',
-    alpha=0.05, mult.corr="fdr", log.n0=1e-06, pr.cutoff=1e-06,
+check.associations <- function(siamcat, formula="feat~label", formula.null="feat~1",
+    test=NULL, alpha=0.05, mult.corr="fdr", log.n0=1e-06, pr.cutoff=1e-06,
     probs.fc=seq(.1, .9, .05), paired=NULL, feature.type='filtered',
     verbose = 1) {
+        canonical_formula <- as.formula("feat ~ label")
+        canonical_formula_null <- as.formula("feat ~ 1")
 
         if (verbose > 1)
             message("+ starting check.associations")
@@ -134,11 +143,13 @@ check.associations <- function(siamcat, formula="feat~label", test='wilcoxon',
                 "'. Exiting!\n  Must of one of c('holm', 'hochberg', ",
                 "'hommel', 'bonferroni', 'BH', 'BY', 'fdr', none')")
         }
-        # check test
-        if (!test %in% c('wilcoxon', 'lm')){
-            stop("Unknown testing method: '", test,
-                "'. Exiting!\n  Must of one of c('wilcoxon', 'lm')")
-        }
+        
+        # check formulas
+        formula <- as.formula(formula)
+        formula.null <- as.formula(formula.null)
+        check.formulas.nested(formula, formula.null)
+        random_effects_present <- !is.null(reformulas::findbars(formula))
+        
         # check label
         label <- label(siamcat)
         if (label$type == 'TEST'){
@@ -146,15 +157,57 @@ check.associations <- function(siamcat, formula="feat~label", test='wilcoxon',
                 ' SIAMCAT object with TEST label! Exiting...')
         }
         if (label$type=='CONTINUOUS' & test == 'wilcoxon'){
-            warning("Cannot test a SIAMCAT object with regression label using",
-                    " the Wilcoxon test. Changing test to 'lm'!")
-            test <- 'lm'
+            stop("Cannot test a SIAMCAT object with regression label using",
+                    " the Wilcoxon test.")
         }
+        
+        # set NULL test
+        if (is.null(test)) {
+            if (label$type=='CONTINUOUS' && random_effects_present){
+                test <- 'lmer'
+            } else if (label$type=='CONTINUOUS' && !random_effects_present){
+                test <- 'lm'
+            } else if (label$type=='BINARY' && formula == canonical_formula && formula.null == canonical_formula_null){
+                test <- 'wilcoxon'
+            } else if (label$type=='BINARY' && (formula != canonical_formula || formula.null == canonical_formula_null) & !random_effects_present){
+                test <- 'lm'
+            } else if (label$type=='BINARY' && (formula != canonical_formula || formula.null == canonical_formula_null) & random_effects_present){
+                test <- 'lmer'
+            } else {
+                stop("An error occurred in determining the type of test to perform, please raise an issue with the developpers of this package")
+            }
+            message("Setting test to ", test)
+        }
+        
+        # check test
+        allowed_tests <- c('wilcoxon', 'lm', 'lmer')
+        if (!test %in% allowed_tests){
+            stop("Unknown testing method: '", test,
+                "'. Exiting!\n  Must of one of ", paste(allowed_tests, collapse=", "))
+        } 
+        if (test == "wilcoxon" && formula != canonical_formula) {
+            stop("wilcoxon test does not support the use of covariates.")
+        }
+        if (test == "wilcoxon" && formula.null != canonical_formula_null) {
+            stop(
+                "wilcoxon test cannot use formula.null.",
+                "Please leave formula.null to the default value or change test to lm/lmer."
+            )
+        }
+        if (test == "lm" && random_effects_present) {
+            stop("lm test cannot be used with random effects in the formula")
+        }
+        if (test == "lmer" && !random_effects_present) {
+            stop("lmer test cannot be used without random effects in the formula")
+        }
+        
         meta <- meta(siamcat)
+        
         # check feature type
         if (!feature.type %in% c('original', 'filtered', 'normalized')){
             stop("Unrecognised feature type, exiting...\n")
         }
+        
         # get features
         if (feature.type == 'original'){
             feat <- get.orig_feat.matrix(siamcat)
@@ -176,6 +229,7 @@ check.associations <- function(siamcat, formula="feat~label", test='wilcoxon',
             feature.type != 'normalized'){
             stop('This function expects compositional data. Exiting...')
         }
+
         # check paired
         if (!is.null(paired)){
             if (label$type!='BINARY'){
@@ -222,18 +276,13 @@ check.associations <- function(siamcat, formula="feat~label", test='wilcoxon',
             label$label <- label$label[rownames(meta.red)]
             meta <- meta.red
         }
-        # check the formula
-        if (test=='wilcoxon' & formula!='feat~label'){
-            warning("For confounder-corrected tests, SIAMCAT uses linear",
-                    " mixed effect models. Changing test to 'lm'!")
-            test <- 'lm'
-        }
 
-        param.list <- list(formula=formula, alpha=alpha, mult.corr=mult.corr,
+        param.list <- list(formula=formula, formula.null=formula.null, alpha=alpha, mult.corr=mult.corr,
                             log.n0=log.n0, pr.cutoff=pr.cutoff,
                             test=test, feature.type=feature.type,
                             paired=paired, probs.fc=probs.fc)
-        # check if results are already available
+
+        # if only alpha changed no need to rerun, just update the param.list
         if (!is.null(associations(siamcat, verbose=0))){
             old.params <- assoc_param(siamcat)
             check <- any(
@@ -290,22 +339,17 @@ analyze.markers <- function(feat, meta, label, param.list){
     return(res)
 }
 
-# ##############################################################################
+###############################################################################
 ### maker analysis for two-class data
-#     calculate p-value with Wilcoxon
-#     fold change as normalized absolute difference between quantiles
-#     prevalence shift
-#     single marker AUC
 #' @keywords internal
 analyze.binary.markers <- function(feat, meta, label, param.list) {
-
-
     if (param.list$feature.type=='normalized'){
         take.log <- FALSE
     } else {
         take.log <- TRUE
     }
 
+    # warn if the pseudocount is too large
     if (any(feat[feat != 0] < param.list$log.n0) & take.log==TRUE){
         cnt <- length(which(feat[feat!=0] < param.list$log.n0))
         percentage <- (cnt/length(feat[feat!=0]))*100
@@ -319,7 +363,7 @@ analyze.binary.markers <- function(feat, meta, label, param.list) {
     }
 
     ############################################################################
-    ### Calculate wilcoxon, pseudo-FC, prevalence shift, and AUC for all feats
+    ### Calculate p, pseudo-FC, prevalence shift, and AUC for all feats
     ############################################################################
 
     positive.label <- max(label$info)
@@ -332,14 +376,15 @@ analyze.binary.markers <- function(feat, meta, label, param.list) {
     if (is.null(meta)){
         df.temp <- data.frame(label=label$label)
     } else {
+        if ("label" %in% names(meta)) stop("A column called 'label' in the metadata is not allowed.")
         df.temp <- data.frame(lapply(names(meta),
                     FUN = function(x){meta@.Data[[which(names(meta)==x)]]}))
         colnames(df.temp) <- names(meta)
         rownames(df.temp) <- rownames(meta)
         df.temp$label <- label$label
     }
+    # TODO: ok to here
     effect.size <- t(vapply(rownames(feat), FUN = function(x){
-
         df.temp$feat <- feat[x,rownames(df.temp)]
         if (!is.null(param.list$paired)){
             df.temp <- df.temp[sort(df.temp[[param.list$paired]],
@@ -420,8 +465,6 @@ analyze.binary.markers <- function(feat, meta, label, param.list) {
 
 # ##############################################################################
 ### maker analysis for regression
-#     calculate p-value with LM
-#     spearman correlation
 #' @keywords internal
 analyze.continuous.markes <- function(feat, meta, label, param.list) {
 
@@ -506,4 +549,20 @@ analyze.continuous.markes <- function(feat, meta, label, param.list) {
     }
 
     return("effect.size" = effect.size)
+}
+
+# ##############################################################################
+#' @keywords internal
+check.formulas.nested <- function(formula_full, formula_reduced) {
+    terms_reduced <- attr(terms(formula_reduced), "term.labels")
+    terms_full    <- attr(terms(formula_full), "term.labels")
+    label_reduced <- deparse(formula_reduced[[2]])
+    label_full    <- deparse(formula_full[[2]])
+    
+    if (!all(terms_reduced %in% terms_full)){
+      stop("'formula' is not properly nested in 'formula.null'. Aborting.")
+    }
+    if (!identical(label_reduced, label_full)){
+      stop("'formula' and 'formula.null' do not have identical labels. Aborting.")
+    }
 }
