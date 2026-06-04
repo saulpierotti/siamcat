@@ -19,10 +19,6 @@
 #' @param formula string, formula used for testing, see Details for more 
 #' information, defaults to \code{"feat~label"}
 #' 
-#' @param formula.null string, formula used for the null model in lm and lmer for
-#' likelyhood ratio testing, see Details for more 
-#' information, defaults to \code{"feat~1"}
-#' 
 #' @param test string, statistical test used for the association testing, can
 #' be either \code{'wilcoxon'}, \code{'lm'}, or \code{'lmer'} see Details for more 
 #' information, defaults to \code{NULL}, which uses the Wilcoxon test for binary labels
@@ -73,12 +69,13 @@
 #' classification problems, these associations are: \itemize{
 #' \item AUROC (area under the Receiver Operating Characteristics curve) as a 
 #' non-parametric measure of enrichment,
-#' \item the generalized fold change (gFC), a pseudo-fold change which is 
+#' \item the generalized fold change (gFC) for the untransformed abundances, a pseudo-fold change which is 
 #' calculated as geometric mean of the differences between quantiles across 
-#' both groups,
+#' both groups (for paired tests the real fold change is used),
 #' \item prevalence shift (difference in prevalence between the two groups).}
 #' For regression problems, the effect sizes are: \itemize{
 #' \item Spearman correlation between the feature and the label.}
+#' \item Effect size from the linear or mixed effect model (beta)
 #' 
 #' @section Confounder-corrected testing:
 #' To correct for possible confounders while testing for association, the 
@@ -118,19 +115,18 @@
 #' #
 #' # this is not run during checks
 #' # siamcat_example <- check.associations(siamcat_example, 
-#' #     formula='feat~label+Sex', formula.null='feat~Sex', test='lm')
+#' #     formula='feat~label+Sex', test='lm')
 #' 
 #' # Paired testing
 #' #
 #' # this is not run during checks
 #' # siamcat_paired <- check.associations(siamcat_paired, 
 #' #     paired='Individual_ID')
-check.associations <- function(siamcat, formula="feat~label", formula.null="feat~1",
+check.associations <- function(siamcat, formula="feat~label",
     test=NULL, alpha=0.05, mult.corr="fdr", log.n0=1e-06, pr.cutoff=1e-06,
     probs.fc=seq(.1, .9, .05), paired=NULL, feature.type='filtered',
     verbose = 1) {
-        canonical_formula <- as.formula("feat ~ label")
-        canonical_formula_null <- as.formula("feat ~ 1")
+        canonical_formula_obj <- as.formula("feat ~ label")
 
         if (verbose > 1)
             message("+ starting check.associations")
@@ -145,10 +141,12 @@ check.associations <- function(siamcat, formula="feat~label", formula.null="feat
         }
         
         # check formulas
-        formula <- as.formula(formula)
-        formula.null <- as.formula(formula.null)
-        check.formulas.nested(formula, formula.null)
-        random_effects_present <- !is.null(reformulas::findbars(formula))
+        formula_obj <- as.formula(formula)
+        if (!'feat' %in% attr(terms(formula_obj), "term.labels")) {
+            stop("The formula must contain 'feat' as a term.")
+        }
+        formula_obj <- as.formula(param.list$formula)
+        random_effects_present <- !is.null(reformulas::findbars(formula_obj))
         
         # check label
         label <- label(siamcat)
@@ -167,11 +165,11 @@ check.associations <- function(siamcat, formula="feat~label", formula.null="feat
                 test <- 'lmer'
             } else if (label$type=='CONTINUOUS' && !random_effects_present){
                 test <- 'lm'
-            } else if (label$type=='BINARY' && formula == canonical_formula && formula.null == canonical_formula_null){
+            } else if (label$type=='BINARY' && formula_obj == canonical_formula_obj){
                 test <- 'wilcoxon'
-            } else if (label$type=='BINARY' && (formula != canonical_formula || formula.null == canonical_formula_null) & !random_effects_present){
+            } else if (label$type=='BINARY' && (formula_obj != canonical_formula_obj & !random_effects_present){
                 test <- 'lm'
-            } else if (label$type=='BINARY' && (formula != canonical_formula || formula.null == canonical_formula_null) & random_effects_present){
+            } else if (label$type=='BINARY' && (formula_obj != canonical_formula_obj & random_effects_present){
                 test <- 'lmer'
             } else {
                 stop("An error occurred in determining the type of test to perform, please raise an issue with the developpers of this package")
@@ -185,14 +183,8 @@ check.associations <- function(siamcat, formula="feat~label", formula.null="feat
             stop("Unknown testing method: '", test,
                 "'. Exiting!\n  Must of one of ", paste(allowed_tests, collapse=", "))
         } 
-        if (test == "wilcoxon" && formula != canonical_formula) {
+        if (test == "wilcoxon" && formula_obj != canonical_formula_obj) {
             stop("wilcoxon test does not support the use of covariates.")
-        }
-        if (test == "wilcoxon" && formula.null != canonical_formula_null) {
-            stop(
-                "wilcoxon test cannot use formula.null.",
-                "Please leave formula.null to the default value or change test to lm/lmer."
-            )
         }
         if (test == "lm" && random_effects_present) {
             stop("lm test cannot be used with random effects in the formula")
@@ -209,6 +201,7 @@ check.associations <- function(siamcat, formula="feat~label", formula.null="feat
         }
         
         # get features
+        feat_orig <- get.orig_feat.matrix(siamcat)
         if (feature.type == 'original'){
             feat <- get.orig_feat.matrix(siamcat)
         } else if (feature.type == 'filtered'){
@@ -277,7 +270,7 @@ check.associations <- function(siamcat, formula="feat~label", formula.null="feat
             meta <- meta.red
         }
 
-        param.list <- list(formula=formula, formula.null=formula.null, alpha=alpha, mult.corr=mult.corr,
+        param.list <- list(formula=formula, alpha=alpha, mult.corr=mult.corr,
                             log.n0=log.n0, pr.cutoff=pr.cutoff,
                             test=test, feature.type=feature.type,
                             paired=paired, probs.fc=probs.fc)
@@ -300,13 +293,13 @@ check.associations <- function(siamcat, formula="feat~label", formula.null="feat
                     assoc.param=param.list)
                 res <- associations(siamcat)
             } else {
-                res <- analyze.markers(feat, meta, label, param.list)
+                res <- analyze.markers(feat, feat_orig, meta, label, param.list)
                 associations(siamcat) <- list(
                     assoc.results=res,
                     assoc.param=param.list)
             }
         } else {
-            res <- analyze.markers(feat, meta, label, param.list)
+            res <- analyze.markers(feat, feat_orig, meta, label, param.list)
             associations(siamcat) <- list(
                 assoc.results=res,
                 assoc.param=param.list)
@@ -330,27 +323,9 @@ check.associations <- function(siamcat, formula="feat~label", formula.null="feat
 
 # ##############################################################################
 #' @keywords internal
-analyze.markers <- function(feat, meta, label, param.list){
-    if (label$type=='CONTINUOUS'){
-        res <- analyze.continuous.markes(feat, meta, label, param.list)
-    } else if (label$type=='BINARY'){
-        res <- analyze.binary.markers(feat, meta, label, param.list)
-    }
-    return(res)
-}
-
-###############################################################################
-### maker analysis for two-class data
-#' @keywords internal
-analyze.binary.markers <- function(feat, meta, label, param.list) {
-    if (param.list$feature.type=='normalized'){
-        take.log <- FALSE
-    } else {
-        take.log <- TRUE
-    }
-
+analyze.markers <- function(feat, feat_orig, meta, label, param.list){
     # warn if the pseudocount is too large
-    if (any(feat[feat != 0] < param.list$log.n0) & take.log==TRUE){
+    if (any(feat[feat != 0] < param.list$log.n0) & param.list$feature.type != 'normalized'){
         cnt <- length(which(feat[feat!=0] < param.list$log.n0))
         percentage <- (cnt/length(feat[feat!=0]))*100
         if (percentage >= 5){
@@ -362,207 +337,181 @@ analyze.binary.markers <- function(feat, meta, label, param.list) {
         }
     }
 
-    ############################################################################
-    ### Calculate p, pseudo-FC, prevalence shift, and AUC for all feats
-    ############################################################################
-
-    positive.label <- max(label$info)
-    negative.label <- min(label$info)
-
     feat <- feat[,names(label$label)]
-
     pb <- progress_bar$new(total = nrow(feat))
-
+    
     if (is.null(meta)){
         df.temp <- data.frame(label=label$label)
     } else {
         if ("label" %in% names(meta)) stop("A column called 'label' in the metadata is not allowed.")
-        df.temp <- data.frame(lapply(names(meta),
-                    FUN = function(x){meta@.Data[[which(names(meta)==x)]]}))
+        df.temp <- data.frame(lapply(names(meta), FUN = function(x){meta@.Data[[which(names(meta)==x)]]}))
         colnames(df.temp) <- names(meta)
         rownames(df.temp) <- rownames(meta)
-        df.temp$label <- label$label
+        df.temp$label <- label$label[rownames(df.temp)]
     }
-    # TODO: ok to here
-    effect.size <- t(vapply(rownames(feat), FUN = function(x){
-        df.temp$feat <- feat[x,rownames(df.temp)]
+
+    if (label$type=='CONTINUOUS'){
+        ret <- analyze.continuous.markes(feat, feat_orig, meta, label, param.list)
+    } else if (label$type=='BINARY'){
+        ret <- analyze.binary.markers(feat, feat_orig, meta, label, param.list)
+    }
+    
+    ret <- as.data.frame(res)
+    
+    ### Apply multi-hypothesis testing correction
+    if (param.list$mult.corr == 'none') {
+        warning('No multiple hypothesis testing performed.')
+        res$p.adj <- res$p.val
+    } else {
+        res$p.adj <- p.adjust(res$p.val, method = param.list$mult.corr)
+    }
+
+    return(res)
+}
+
+###############################################################################
+### maker analysis for two-class data
+#' @keywords internal
+analyze.binary.markers <- function(feat, feat_orig, meta, label, param.list) {
+    positive.label <- max(label$info)
+    negative.label <- min(label$info)
+    formula_obj <- as.formula(param.list$formula)
+    formula_null_obj <- update(formula_obj, . ~ . - feat)
+
+    ret <- t(vapply(rownames(feat), FUN = function(xname){
+        df.temp$feat <- feat[xname,rownames(df.temp)]
+        df.temp$feat_orig <- feat_orig[xname,rownames(df.temp)]
+        df.temp$feat_log <- log10(df.temp$feat_orig + param.list$log.n0)
+
+        if (param.list$feature.type != 'normalized') df.temp$feat <- log10(df.temp$feat + param.list$log.n0)
+        
+        # ensure correct pairing order
         if (!is.null(param.list$paired)){
-            df.temp <- df.temp[sort(df.temp[[param.list$paired]],
-                                    index.return=TRUE)$ix,]
+            df.temp <- df.temp[order(df.temp[[param.list$paired]]),]
+            pos_pairing <- df.temp[df.temp$label==positive.label, param.list$paired]
+            neg_pairing <- df.temp[df.temp$label==negative.label, param.list$paired]
+            if (
+                !(
+                    all(pos_pairing == neg_pairing) &&
+                    length(unique(pos_pairing)) == length(pos_pairing) &&
+                    length(unique(neg_pairing)) == length(neg_pairing)
+                )
+            ){
+                stop("Pairing mismatch detected, please raise an issue with the maintainers of this package.")
+            }
         }
-        x <- df.temp[,'feat']
+
+        x.pos_orig <- df.temp[df.temp$label==positive.label,'feat_orig']
+        x.neg_orig <- df.temp[df.temp$label==negative.label,'feat_orig']
+        x.pos_log <- df.temp[df.temp$label==positive.label,'feat_log']
+        x.neg_log <- df.temp[df.temp$label==negative.label,'feat_log']
         x.pos <- df.temp[df.temp$label==positive.label,'feat']
         x.neg <- df.temp[df.temp$label==negative.label,'feat']
-
+        
         # prevalence
-        pr.all <- mean(x > param.list$pr.cutoff)
-        pr.n <- mean(x.neg >= param.list$pr.cutoff)
-        pr.p <- mean(x.pos >=  param.list$pr.cutoff)
-        pr.shift <- c(pr.p - pr.n, pr.n, pr.p, pr.all)
+        pr.all <- mean(df.temp[, 'feat_orig'] > param.list$pr.cutoff)
+        pr.n <- mean(x.pos_orig >= param.list$pr.cutoff)
+        pr.p <- mean(x.neg_orig >=  param.list$pr.cutoff)
+        pr.shift <- pr.p - pr.n
 
         # AUC
-        temp <- roc(cases = x.pos, controls=x.neg, ci = TRUE, direction = '<')
-        aucs <- c(temp$ci)
+        temp <- roc(cases = x.pos, controls = x.neg, ci = TRUE, direction = '<')
+        aucs <- c(temp$ci) # strip attributes
 
-        # gFC
-        if (take.log){
-            x.pos <- log10(x.pos + param.list$log.n0)
-            x.neg <- log10(x.neg + param.list$log.n0)
-        }
+        # FC
         if (is.null(param.list$paired)){
-            q.p <- quantile(x.pos, probs = param.list$probs.fc)
-            q.n <- quantile(x.neg, probs = param.list$probs.fc)
-            fc <- mean(q.p - q.n)
+            q.p <- quantile(x.pos_log, probs = param.list$probs.fc)
+            q.n <- quantile(x.neg_log, probs = param.list$probs.fc)
+            fc_log10 <- mean(q.p - q.n)
         } else {
-            fc <- mean(x.pos-x.neg)
+            fc_log10 <- mean(x.pos_log - x.neg_log)
         }
 
         # p.val
         if (param.list$test=='wilcoxon'){
+            beta <- NA
             if (is.null(param.list$paired)) {
-              p.val <- wilcox.test(formula=as.formula(param.list$formula),
-                                   data=df.temp, exact=FALSE)$p.value
+              p.val <- wilcox.test(x.pos, x.neg, paired=FALSE,
+                                   exact=FALSE)$p.value
             } else {
               p.val <- wilcox.test(x.pos, x.neg, paired=TRUE, 
                                    exact=FALSE)$p.value
             }
-        } else if (param.list$test=='lm'){
-            if (take.log) df.temp$feat <- log10(df.temp$feat +
-                                                    param.list$log.n0)
-            if (!grepl("1\\|", param.list$formula)){
-                fit <- lm(formula = as.formula(param.list$formula),
-                            data=df.temp)
-                res <- coefficients(summary(fit))
-                p.val <- res['label',4]
-            } else {
+        } else {
+            if (param.list$test=='lm'){
+                fit <- lm(formula=formula_obj, data=df.temp)
+                fit_null <- lm(formula=formula_null_obj, data=df.temp)
+            } else if (param.list$test == "lmer"){
                 fit <- suppressMessages(
-                    lmerTest::lmer(formula=as.formula(param.list$formula),
-                                    data=df.temp))
-                res <- coefficients(summary(fit))
-                p.val <- res['label',5]
+                    lme4::lmer(formula=formula_obj, data=df.temp, REML = FALSE)
+                )
+                fit_null <- suppressMessages(
+                    lme4::lmer(formula=formula_null_obj, data=df.temp, REML = FALSE)
+                )
+            } else {
+                stop("Unrecognised test, please raise an issue with the package developper.")
             }
+            p.val <- anova(fit_null, fit, test="LRT")[2, "Pr(>Chi)"]
+            beta <- coef(fit)[['feat']]
         }
 
         pb$tick()
-        return(c('fc' = fc, 'p.val' = p.val, 'auc' = aucs[2],
-                    'auc.ci.l' = aucs[1], 'auc.ci.h' = aucs[3],
-                    'pr.shift' = pr.shift[1], 'pr.n' = pr.shift[2],
-                    'pr.p' = pr.shift[3], 'pr.all' = pr.shift[4]))
+        return(c(
+                'fc.log10' = fc_log10, 'p.val' = p.val,
+                'beta' = beta, 'auc' = aucs[2], 
+                'auc.ci.l' = aucs[1], 'auc.ci.h' = aucs[3],
+                'pr.shift' = pr.shift, 'pr.n' = pr.n,
+                'pr.p' = pr.p, 'pr.all' = pr.all
+        ))
     }, FUN.VALUE = double(9)))
-    effect.size <- as.data.frame(effect.size)
-    ### Apply multi-hypothesis testing correction
 
-    if (param.list$mult.corr == 'none') {
-        warning('No multiple hypothesis testing performed.')
-        effect.size$p.adj <- effect.size$p.val
-    } else {
-        effect.size$p.adj <-
-            p.adjust(effect.size$p.val, method = param.list$mult.corr)
-    }
-
-    return("effect.size" = effect.size)
+    # names are the xnames beacuse vapply sets those from the input
+    return(ret)
 }
 
 # ##############################################################################
 ### maker analysis for regression
 #' @keywords internal
-analyze.continuous.markes <- function(feat, meta, label, param.list) {
+analyze.continuous.markes <- function(feat, feat_orig, meta, label, param.list, take.log) {
+    formula_obj <- as.formula(param.list$formula)
+    formula_null_obj <- update(formula_obj, . ~ . - feat)
 
-    if (param.list$feature.type=='normalized'){
-        take.log <- FALSE
-    } else {
-        take.log <- TRUE
-    }
+    ret <- t(vapply(rownames(feat), FUN = function(xname){
+        df.temp$feat <- feat[xname,rownames(df.temp)]
+        df.temp$feat_orig <- feat_orig[xname,rownames(df.temp)]
+        
+        if (param.list$feature.type != 'normalized') df.temp$feat <- log10(df.temp$feat + param.list$log.n0)
 
-    if (any(feat[feat != 0] < param.list$log.n0) & take.log==TRUE){
-        cnt <- length(which(feat[feat!=0] < param.list$log.n0))
-        percentage <- (cnt/length(feat[feat!=0]))*100
-        if (percentage >= 5){
-            msg <- paste0('### Some values (',cnt, ' or ',
-                            formatC(percentage, digits=2),
-                            '% of non-zero entries',
-                            ') are smaller than the given detection limit!')
-            message(msg)
-        }
-    }
-
-    ############################################################################
-    ### Calculate p value with LM, spearman's rho
-    ############################################################################
-
-    feat <- feat[,names(label$label)]
-
-    pb <- progress_bar$new(total = nrow(feat))
-
-    if (is.null(meta)){
-        df.temp <- data.frame(label=label$label)
-    } else {
-        df.temp <- data.frame(lapply(names(meta),
-            FUN = function(x){meta@.Data[[which(names(meta)==x)]]}))
-        colnames(df.temp) <- names(meta)
-        rownames(df.temp) <- rownames(meta)
-        df.temp$label <- label$label[rownames(meta)]
-    }
-
-
-    effect.size <- t(vapply(rownames(feat), FUN = function(x){
-
-        df.temp$feat <- feat[x,rownames(df.temp)]
-
-        # prevalence
-        pr.all <- mean(df.temp[,'feat'] > param.list$pr.cutoff)
-
+        # prevalence and spearman
+        pr.all <- mean(df.temp[, 'feat_orig'] > param.list$pr.cutoff)
         cor.sp <- cor(df.temp$feat, df.temp$label, method='spearman')
-
-        # p.val
-        if (take.log) df.temp$feat <- log10(df.temp$feat + param.list$log.n0)
-
-        # this is kind of wrong, we want to use LM for simple covariates also
-        if (param.list$formula=='feat~label'){
-            fit <- lm(formula = as.formula(param.list$formula),
-                        data=df.temp)
-            res <- coefficients(summary(fit))
-            p.val <- res[2,4]
-            beta <- res[2,1]
-        } else {
+        
+        if (param.list$test=='lm'){
+            fit <- lm(formula=formula_obj, data=df.temp)
+            fit_null <- lm(formula=formula_null_obj, data=df.temp)
+        } else if (param.list$test == "lmer"){
             fit <- suppressMessages(
-                lmer(formula=as.formula(param.list$formula),
-                                data=df.temp))
-            res <- coefficients(summary(fit))
-            p.val <- res[2,5]
-            beta <- res[2,1]
+                lme4::lmer(formula=formula_obj, data=df.temp, REML = FALSE)
+            )
+            fit_null <- suppressMessages(
+                lme4::lmer(formula=formula_null_obj, data=df.temp, REML = FALSE)
+            )
+        } else {
+            stop("Unrecognised test, please raise an issue with the package developper.")
         }
 
+        p.val <- anova(fit_null, fit, test="LRT")[2, "Pr(>Chi)"]
+        beta <- coef(fit)[['feat']]
+
+        pb$tick()
+        return(c(
+            'p.val' = p.val, 'spearman' = spearman, 
+            'beta' = beta, 'pr.all' = pr.all
+        ))
 
         pb$tick()
         return(c(beta=beta, p.val=p.val, spearman=cor.sp, pr.all=pr.all))
     }, FUN.VALUE = double(4)))
-    effect.size <- as.data.frame(effect.size)
-    ### Apply multi-hypothesis testing correction
 
-    if (param.list$mult.corr == 'none') {
-        warning('No multiple hypothesis testing performed.')
-        effect.size$p.adj <- effect.size$p.val
-    } else {
-        effect.size$p.adj <-
-            p.adjust(effect.size$p.val, method = param.list$mult.corr)
-    }
-
-    return("effect.size" = effect.size)
-}
-
-# ##############################################################################
-#' @keywords internal
-check.formulas.nested <- function(formula_full, formula_reduced) {
-    terms_reduced <- attr(terms(formula_reduced), "term.labels")
-    terms_full    <- attr(terms(formula_full), "term.labels")
-    label_reduced <- deparse(formula_reduced[[2]])
-    label_full    <- deparse(formula_full[[2]])
-    
-    if (!all(terms_reduced %in% terms_full)){
-      stop("'formula' is not properly nested in 'formula.null'. Aborting.")
-    }
-    if (!identical(label_reduced, label_full)){
-      stop("'formula' and 'formula.null' do not have identical labels. Aborting.")
-    }
+    return(ret)
 }
