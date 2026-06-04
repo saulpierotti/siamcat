@@ -72,10 +72,12 @@
 #' \item the generalized fold change (gFC) for the untransformed abundances, a pseudo-fold change which is 
 #' calculated as geometric mean of the differences between quantiles across 
 #' both groups (for paired tests the real fold change is used),
+#' \item rank-biserial correlation, a non-parametric effect size metric 
 #' \item prevalence shift (difference in prevalence between the two groups).}
+#' \item effect size from the linear or mixed effect model (beta)
 #' For regression problems, the effect sizes are: \itemize{
 #' \item Spearman correlation between the feature and the label.}
-#' \item Effect size from the linear or mixed effect model (beta)
+#' \item effect size from the linear or mixed effect model (beta)
 #' 
 #' @section Confounder-corrected testing:
 #' To correct for possible confounders while testing for association, the 
@@ -145,7 +147,7 @@ check.associations <- function(siamcat, formula="feat~label",
         if (!'feat' %in% attr(terms(formula_obj), "term.labels")) {
             stop("The formula must contain 'feat' as a term.")
         }
-        formula_obj <- as.formula(param.list$formula)
+        formula_obj <- as.formula(formula)
         random_effects_present <- !is.null(reformulas::findbars(formula_obj))
         
         # check label
@@ -167,9 +169,9 @@ check.associations <- function(siamcat, formula="feat~label",
                 test <- 'lm'
             } else if (label$type=='BINARY' && formula_obj == canonical_formula_obj){
                 test <- 'wilcoxon'
-            } else if (label$type=='BINARY' && (formula_obj != canonical_formula_obj & !random_effects_present){
+            } else if (label$type=='BINARY' && (formula_obj != canonical_formula_obj & !random_effects_present)){
                 test <- 'lm'
-            } else if (label$type=='BINARY' && (formula_obj != canonical_formula_obj & random_effects_present){
+            } else if (label$type=='BINARY' && (formula_obj != canonical_formula_obj & random_effects_present)){
                 test <- 'lmer'
             } else {
                 stop("An error occurred in determining the type of test to perform, please raise an issue with the developpers of this package")
@@ -270,10 +272,12 @@ check.associations <- function(siamcat, formula="feat~label",
             meta <- meta.red
         }
 
-        param.list <- list(formula=formula, alpha=alpha, mult.corr=mult.corr,
-                            log.n0=log.n0, pr.cutoff=pr.cutoff,
-                            test=test, feature.type=feature.type,
-                            paired=paired, probs.fc=probs.fc)
+        param.list <- list(
+            formula=formula, alpha=alpha, mult.corr=mult.corr,
+            log.n0=log.n0, pr.cutoff=pr.cutoff,
+            test=test, feature.type=feature.type,
+            paired=paired, probs.fc=probs.fc
+        )
 
         # if only alpha changed no need to rerun, just update the param.list
         if (!is.null(associations(siamcat, verbose=0))){
@@ -356,17 +360,17 @@ analyze.markers <- function(feat, feat_orig, meta, label, param.list){
         ret <- analyze.binary.markers(feat, feat_orig, meta, label, param.list)
     }
     
-    ret <- as.data.frame(res)
+    ret <- as.data.frame(ret)
     
     ### Apply multi-hypothesis testing correction
     if (param.list$mult.corr == 'none') {
         warning('No multiple hypothesis testing performed.')
-        res$p.adj <- res$p.val
+        ret$p.adj <- ret$p.val
     } else {
-        res$p.adj <- p.adjust(res$p.val, method = param.list$mult.corr)
+        ret$p.adj <- p.adjust(ret$p.val, method = param.list$mult.corr)
     }
 
-    return(res)
+    return(ret)
 }
 
 ###############################################################################
@@ -410,8 +414,8 @@ analyze.binary.markers <- function(feat, feat_orig, meta, label, param.list) {
         
         # prevalence
         pr.all <- mean(df.temp[, 'feat_orig'] > param.list$pr.cutoff)
-        pr.n <- mean(x.pos_orig >= param.list$pr.cutoff)
-        pr.p <- mean(x.neg_orig >=  param.list$pr.cutoff)
+        pr.p <- mean(x.pos_orig >= param.list$pr.cutoff)
+        pr.n <- mean(x.neg_orig >= param.list$pr.cutoff)
         pr.shift <- pr.p - pr.n
 
         # AUC
@@ -426,17 +430,14 @@ analyze.binary.markers <- function(feat, feat_orig, meta, label, param.list) {
         } else {
             fc_log10 <- mean(x.pos_log - x.neg_log)
         }
+        
+        # rank biserial correlation
+        rank_biserial <- effectsize::rank_biserial(x.pos, x.neg, paired=!is.null(param.list$paired))
 
         # p.val
         if (param.list$test=='wilcoxon'){
             beta <- NA
-            if (is.null(param.list$paired)) {
-              p.val <- wilcox.test(x.pos, x.neg, paired=FALSE,
-                                   exact=FALSE)$p.value
-            } else {
-              p.val <- wilcox.test(x.pos, x.neg, paired=TRUE, 
-                                   exact=FALSE)$p.value
-            }
+            p.val <- wilcox.test(x.pos, x.neg, paired=!is.null(param.list$paired), exact=FALSE)$p.value
         } else {
             if (param.list$test=='lm'){
                 fit <- lm(formula=formula_obj, data=df.temp)
@@ -461,7 +462,8 @@ analyze.binary.markers <- function(feat, feat_orig, meta, label, param.list) {
                 'beta' = beta, 'auc' = aucs[2], 
                 'auc.ci.l' = aucs[1], 'auc.ci.h' = aucs[3],
                 'pr.shift' = pr.shift, 'pr.n' = pr.n,
-                'pr.p' = pr.p, 'pr.all' = pr.all
+                'pr.p' = pr.p, 'pr.all' = pr.all,
+                'rank.biserial' = rank_biserial
         ))
     }, FUN.VALUE = double(9)))
 

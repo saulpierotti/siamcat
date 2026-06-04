@@ -60,6 +60,7 @@ Imports:
     progress,
     corrplot,
     lme4,
+    effectsize,
     reformulas,
     mlr3learners,
     mlr3tuning,
