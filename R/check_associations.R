@@ -342,7 +342,6 @@ analyze.markers <- function(feat, feat_orig, meta, label, param.list){
     }
 
     feat <- feat[,names(label$label)]
-    pb <- progress_bar$new(total = nrow(feat))
     
     if (is.null(meta)){
         df.temp <- data.frame(label=label$label)
@@ -377,6 +376,7 @@ analyze.markers <- function(feat, feat_orig, meta, label, param.list){
 ### maker analysis for two-class data
 #' @keywords internal
 analyze.binary.markers <- function(df.temp, feat, feat_orig, meta, label, param.list) {
+    pb <- progress_bar$new(total = nrow(feat))
     positive.label <- max(label$info)
     negative.label <- min(label$info)
     formula_obj <- as.formula(param.list$formula)
@@ -442,7 +442,7 @@ analyze.binary.markers <- function(df.temp, feat, feat_orig, meta, label, param.
             if (param.list$test=='lm'){
                 fit <- lm(formula=formula_obj, data=df.temp)
                 fit_null <- lm(formula=formula_null_obj, data=df.temp)
-                beta <- coef(fit)[['feat']]
+                beta <- coef(fit)[['label']]
             } else if (param.list$test == "lmer"){
                 fit <- suppressMessages(
                     lme4::lmer(formula=formula_obj, data=df.temp, REML = FALSE)
@@ -450,7 +450,7 @@ analyze.binary.markers <- function(df.temp, feat, feat_orig, meta, label, param.
                 fit_null <- suppressMessages(
                     lme4::lmer(formula=formula_null_obj, data=df.temp, REML = FALSE)
                 )
-                beta <- lme4::fixef(fit)[['feat']]
+                beta <- lme4::fixef(fit)[['label']]
             } else {
                 stop("Unrecognised test, please raise an issue with the package developper.")
             }
@@ -476,6 +476,7 @@ analyze.binary.markers <- function(df.temp, feat, feat_orig, meta, label, param.
 ### maker analysis for regression
 #' @keywords internal
 analyze.continuous.markers <- function(df.temp, feat, feat_orig, meta, label, param.list) {
+    pb <- progress_bar$new(total = nrow(feat))
     formula_obj <- as.formula(param.list$formula)
     formula_null_obj <- update(formula_obj, . ~ . - label)
 
@@ -492,7 +493,7 @@ analyze.continuous.markers <- function(df.temp, feat, feat_orig, meta, label, pa
         if (param.list$test=='lm'){
             fit <- lm(formula=formula_obj, data=df.temp)
             fit_null <- lm(formula=formula_null_obj, data=df.temp)
-            beta <- coef(fit)[['feat']]
+            beta <- coef(fit)[['label']]
         } else if (param.list$test == "lmer"){
             fit <- suppressMessages(
                 lme4::lmer(formula=formula_obj, data=df.temp, REML = FALSE)
@@ -500,7 +501,7 @@ analyze.continuous.markers <- function(df.temp, feat, feat_orig, meta, label, pa
             fit_null <- suppressMessages(
                 lme4::lmer(formula=formula_null_obj, data=df.temp, REML = FALSE)
             )
-            beta <- lme4::fixef(fit)[['feat']]
+            beta <- lme4::fixef(fit)[['label']]
         } else {
             stop("Unrecognised test, please raise an issue with the package developper.")
         }
