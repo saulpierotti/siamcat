@@ -282,10 +282,10 @@ check.associations <- function(siamcat, formula="feat~label",
         # if only alpha changed no need to rerun, just update the param.list
         if (!is.null(associations(siamcat, verbose=0))){
             old.params <- assoc_param(siamcat)
-            check <- any(
-                all.equal(param.list[-which(names(param.list)=='alpha')],
-                            old.params[-which(names(old.params)=='alpha')])
-                == TRUE)
+            check <- all.equal(
+                param.list[-which(names(param.list)=='alpha')],
+                old.params[-which(names(old.params)=='alpha')]
+            )
             check <- all(check, nrow(associations(siamcat)) == nrow(feat))
             check <- all(check,
                         all(rownames(associations(siamcat)) == rownames(feat)))
@@ -355,9 +355,9 @@ analyze.markers <- function(feat, feat_orig, meta, label, param.list){
     }
 
     if (label$type=='CONTINUOUS'){
-        ret <- analyze.continuous.markes(feat, feat_orig, meta, label, param.list)
+        ret <- analyze.continuous.markers(df.temp, feat, feat_orig, meta, label, param.list)
     } else if (label$type=='BINARY'){
-        ret <- analyze.binary.markers(feat, feat_orig, meta, label, param.list)
+        ret <- analyze.binary.markers(df.temp, feat, feat_orig, meta, label, param.list)
     }
     
     ret <- as.data.frame(ret)
@@ -376,7 +376,7 @@ analyze.markers <- function(feat, feat_orig, meta, label, param.list){
 ###############################################################################
 ### maker analysis for two-class data
 #' @keywords internal
-analyze.binary.markers <- function(feat, feat_orig, meta, label, param.list) {
+analyze.binary.markers <- function(df.temp, feat, feat_orig, meta, label, param.list) {
     positive.label <- max(label$info)
     negative.label <- min(label$info)
     formula_obj <- as.formula(param.list$formula)
@@ -432,7 +432,7 @@ analyze.binary.markers <- function(feat, feat_orig, meta, label, param.list) {
         }
         
         # rank biserial correlation
-        rank_biserial <- effectsize::rank_biserial(x.pos, x.neg, paired=!is.null(param.list$paired))
+        rank_biserial <- effectsize::rank_biserial(x.pos, x.neg, paired=!is.null(param.list$paired))$r_rank_biserial
 
         # p.val
         if (param.list$test=='wilcoxon'){
@@ -442,6 +442,7 @@ analyze.binary.markers <- function(feat, feat_orig, meta, label, param.list) {
             if (param.list$test=='lm'){
                 fit <- lm(formula=formula_obj, data=df.temp)
                 fit_null <- lm(formula=formula_null_obj, data=df.temp)
+                beta <- coef(fit)[['feat']]
             } else if (param.list$test == "lmer"){
                 fit <- suppressMessages(
                     lme4::lmer(formula=formula_obj, data=df.temp, REML = FALSE)
@@ -449,11 +450,11 @@ analyze.binary.markers <- function(feat, feat_orig, meta, label, param.list) {
                 fit_null <- suppressMessages(
                     lme4::lmer(formula=formula_null_obj, data=df.temp, REML = FALSE)
                 )
+                beta <- lme4::fixef(fit)[['feat']]
             } else {
                 stop("Unrecognised test, please raise an issue with the package developper.")
             }
             p.val <- anova(fit_null, fit, test="LRT")[2, "Pr(>Chi)"]
-            beta <- coef(fit)[['feat']]
         }
 
         pb$tick()
@@ -465,7 +466,7 @@ analyze.binary.markers <- function(feat, feat_orig, meta, label, param.list) {
                 'pr.p' = pr.p, 'pr.all' = pr.all,
                 'rank.biserial' = rank_biserial
         ))
-    }, FUN.VALUE = double(9)))
+    }, FUN.VALUE = double(11)))
 
     # names are the xnames beacuse vapply sets those from the input
     return(ret)
@@ -474,7 +475,7 @@ analyze.binary.markers <- function(feat, feat_orig, meta, label, param.list) {
 # ##############################################################################
 ### maker analysis for regression
 #' @keywords internal
-analyze.continuous.markes <- function(feat, feat_orig, meta, label, param.list, take.log) {
+analyze.continuous.markers <- function(df.temp, feat, feat_orig, meta, label, param.list) {
     formula_obj <- as.formula(param.list$formula)
     formula_null_obj <- update(formula_obj, . ~ . - feat)
 
@@ -491,6 +492,7 @@ analyze.continuous.markes <- function(feat, feat_orig, meta, label, param.list, 
         if (param.list$test=='lm'){
             fit <- lm(formula=formula_obj, data=df.temp)
             fit_null <- lm(formula=formula_null_obj, data=df.temp)
+            beta <- coef(fit)[['feat']]
         } else if (param.list$test == "lmer"){
             fit <- suppressMessages(
                 lme4::lmer(formula=formula_obj, data=df.temp, REML = FALSE)
@@ -498,21 +500,18 @@ analyze.continuous.markes <- function(feat, feat_orig, meta, label, param.list, 
             fit_null <- suppressMessages(
                 lme4::lmer(formula=formula_null_obj, data=df.temp, REML = FALSE)
             )
+            beta <- lme4::fixef(fit)[['feat']]
         } else {
             stop("Unrecognised test, please raise an issue with the package developper.")
         }
 
         p.val <- anova(fit_null, fit, test="LRT")[2, "Pr(>Chi)"]
-        beta <- coef(fit)[['feat']]
 
         pb$tick()
         return(c(
-            'p.val' = p.val, 'spearman' = spearman, 
+            'p.val' = p.val, 'spearman' = cor.sp, 
             'beta' = beta, 'pr.all' = pr.all
         ))
-
-        pb$tick()
-        return(c(beta=beta, p.val=p.val, spearman=cor.sp, pr.all=pr.all))
     }, FUN.VALUE = double(4)))
 
     return(ret)
