@@ -144,8 +144,8 @@ check.associations <- function(siamcat, formula="feat~label",
         
         # check formulas
         formula_obj <- as.formula(formula)
-        if (!'feat' %in% attr(terms(formula_obj), "term.labels")) {
-            stop("The formula must contain 'feat' as a term.")
+        if (!'label' %in% attr(terms(formula_obj), "term.labels")) {
+            stop("The formula must contain 'label' as a term.")
         }
         formula_obj <- as.formula(formula)
         random_effects_present <- !is.null(reformulas::findbars(formula_obj))
@@ -380,7 +380,7 @@ analyze.binary.markers <- function(df.temp, feat, feat_orig, meta, label, param.
     positive.label <- max(label$info)
     negative.label <- min(label$info)
     formula_obj <- as.formula(param.list$formula)
-    formula_null_obj <- update(formula_obj, . ~ . - feat)
+    formula_null_obj <- update(formula_obj, . ~ . - label)
 
     ret <- t(vapply(rownames(feat), FUN = function(xname){
         df.temp$feat <- feat[xname,rownames(df.temp)]
@@ -477,7 +477,7 @@ analyze.binary.markers <- function(df.temp, feat, feat_orig, meta, label, param.
 #' @keywords internal
 analyze.continuous.markers <- function(df.temp, feat, feat_orig, meta, label, param.list) {
     formula_obj <- as.formula(param.list$formula)
-    formula_null_obj <- update(formula_obj, . ~ . - feat)
+    formula_null_obj <- update(formula_obj, . ~ . - label)
 
     ret <- t(vapply(rownames(feat), FUN = function(xname){
         df.temp$feat <- feat[xname,rownames(df.temp)]
