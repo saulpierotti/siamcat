@@ -12,6 +12,8 @@
 #'
 #' @param siamcat object of class \link{siamcat-class}
 #'
+#' @param alpha float, override significance threshold from siamcat object
+#'
 #' @param fn.plot string, filename for the plot (any extension supported by
 #' ggsave is allowed). If \code{fn.plot} is \code{NULL}, the plot will only
 #' be returned as a ggplot object.
@@ -47,8 +49,8 @@
 #' # Simple example
 #' volcano.plot(siamcat_example, fn.plot = "./volcano.pdf")
 volcano.plot <- function(
-    siamcat, fn.plot = NULL, color.scheme = c("red", "blue", "gray"),
-    annotate = 3,
+    siamcat, alpha=NULL,fn.plot = NULL,
+    color.scheme = c("red", "blue", "gray"), annotate = 3,
     annot.size = 4, annot.y.exp = 0.2, annot.y.shift = NULL,
     font.size = 14
 ) {
@@ -61,6 +63,7 @@ volcano.plot <- function(
     }
     associations$label <- rownames(associations)
     assoc.param <- assoc_param(siamcat)
+    assoc.param$alpha <- ifelse(is.null(alpha), assoc.param$alpha, alpha)
 
     if (length(color.scheme) == 1) {
         tryCatch(
