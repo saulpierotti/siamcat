@@ -39,7 +39,7 @@
 #' object in a unsupervised manner.
 #' 
 #' The different filter methods work in the following way: \itemize{
-#' \item \code{'abundace'} - remove features whose maximum abundance is
+#' \item \code{'abundance'} - remove features whose maximum abundance is
 #' never above the threshold value in any of the samples
 #' \item \code{'cum.abundance'} - remove features with very low abundance
 #' in all samples, i.e. those that are never among the most abundant
@@ -95,11 +95,7 @@ filter.features <- function(siamcat,
     if (verbose > 1) message("+ starting filter.features")
     s.time <- proc.time()[3]
 
-    # checks
-    if (!filter.method %in% c("abundance", "cum.abundance",
-                                "prevalence", "variance", "pass")) {
-        stop("Unrecognized filter.method, exiting!\n")
-    }
+    # autoset feature.type
     if (is.null(feature.type)){
         if (!is.null(filt_feat(siamcat, verbose=0))){
             if (verbose == 1) message(
@@ -115,54 +111,58 @@ filter.features <- function(siamcat,
             feature.type <- "original"
         }
     }
-    if (!feature.type %in% c('original', 'filtered', 'normalized')){
-        stop("Unrecognised feature type, exiting...\n")
-    }
-    if (!is.logical(rm.unmapped)){
-        stop("rm.unmapped should be logical, exiting...\n")
-    }
 
     # get the right features
-    if (feature.type=='original'){
-        feat <- get.orig_feat.matrix(siamcat)
-        param.set <- list(list(filter.method=filter.method,
-                cutoff=cutoff, rm.unmapped=rm.unmapped,
-                feature.type=feature.type))
-    } else if (feature.type == 'filtered'){
-        # if not yet there, stop
-        if (is.null(filt_feat(siamcat, verbose=0))){
-            stop("Features have not yet been filtered, exiting...\n")
-        }
-        feat <- get.filt_feat.matrix(siamcat)
-        param.set <- filt_params(siamcat)
-        param.set[[length(param.set)+1]] <-
-            list(filter.method=filter.method,
-                cutoff=cutoff, rm.unmapped=rm.unmapped,
-                feature.type=feature.type)
-    } else if (feature.type == 'normalized'){
-        warning(
-            "You are filtering normalized features. This is usually ",
-            "not a good idea. I assume you know what you are doing."
-        )
-        # if not yet there, stop
-        if (is.null(norm_feat(siamcat, verbose=0))){
-            stop("Features have not yet been normalized, exiting...\n")
-        }
-        if (is.null(filt_feat(siamcat, verbose=0))){
-            param.set <- list(list(filter.method=filter.method,
-                    cutoff=cutoff, rm.unmapped=rm.unmapped,
-                    feature.type=feature.type, feature.type=feature.type))
-        } else {
+    switch(feature.type,
+        "original" = {
+            param.set <- list(list(
+                filter.method = filter.method,
+                cutoff = cutoff, rm.unmapped = rm.unmapped,
+                feature.type = feature.type
+            ))
+            feat <- get.orig_feat.matrix(siamcat)
+        },
+        "filtered" = {
+            if (is.null(filt_feat(siamcat, verbose = 0))) {
+                stop("Features have not yet been filtered, exiting...\n")
+            }
             param.set <- filt_params(siamcat)
-            param.set[[length(param.set)+1]] <-
-                list(filter.method=filter.method,
-                    cutoff=cutoff, rm.unmapped=rm.unmapped,
-                    feature.type=feature.type)
-        }
-        feat <- get.norm_feat.matrix(siamcat)
-    }
+            param.set[[length(param.set) + 1]] <- list(
+                filter.method = filter.method,
+                cutoff = cutoff, rm.unmapped = rm.unmapped,
+                feature.type = feature.type
+            )
+            feat <- get.filt_feat.matrix(siamcat)
+        },
+        "normalized" = {
+            if (filter.method %in% c("abundance", "cum.abundance", "prevalence")) {
+                stop(sprintf(
+                    "filter.method '%s' cannot be used with feature.type 'normalized'.",
+                    filter.method
+                ))
+            }
+            if (is.null(norm_feat(siamcat, verbose = 0))) {
+                stop("Features have not yet been normalized, exiting...\n")
+            }
+            if (is.null(filt_feat(siamcat, verbose = 0))) {
+                param.set <- list(list(
+                    filter.method = filter.method,
+                    cutoff = cutoff, rm.unmapped = rm.unmapped,
+                    feature.type = feature.type
+                ))
+            } else {
+                param.set <- filt_params(siamcat)
+                param.set[[length(param.set) + 1]] <- list(
+                    filter.method = filter.method,
+                    cutoff = cutoff, rm.unmapped = rm.unmapped,
+                    feature.type = feature.type
+                )
+            }
+            feat <- get.norm_feat.matrix(siamcat)
+        },
+        stop("feature.type '", feature.type, "' is not supported.")
+    )
 
-    # check if there are NAs in the data
     if (any(is.na(feat))){
         stop("There are NAs in the feature matrix! Exiting...")
     }
@@ -177,45 +177,53 @@ filter.features <- function(siamcat,
         msg <- paste("+++ applying", filter.method, "filter")
         message(msg)
     }
-    if (filter.method == "abundance") {
-        # remove features whose abundance is never above the threshold value
-        # (e.g. 0.5%) in any of the samples
-        f.max <- rowMaxs(feat)
-        f.idx <- which(f.max >= cutoff)
-    } else if (filter.method == "cum.abundance") {
-        # remove features with very low abundance in all samples i.e. ones that
-        # are never among the most abundant entities that collectively make up
-        # (1-cutoff) of the reads in any sample
-        f.idx <- vector("numeric", 0)
-        # sort features per sample and apply cumsum to identify how many
-        # collectively have weight K
-        for (s in seq_len(ncol(feat))) {
-            srt <- sort(feat[, s], index.return = TRUE)
-            cs <- cumsum(srt$x)
-            m <- max(which(cs < cutoff))
-            f.idx <- union(f.idx, srt$ix[-(seq_len(m))])
-        }
-        # an index of those features that collectively make up more than 1-K of
-        # the read mass in any sample
-        f.idx <- sort(f.idx)
-    } else if (filter.method == "prevalence") {
-        # remove features with low prevalence across samples i.e. ones that are
-        # 0 (undetected) in more than (1-cutoff)
-        # proportion of samples
-        f.idx <-
-            which(rowSums(feat > 0) / ncol(feat) > cutoff)
-    } else if (filter.method == "variance"){
-        # remove features with very low variance
-        f.var <- rowVars(feat)
-        f.idx <- which(f.var >= cutoff)
-    } else if (filter.method == 'pass'){
-        f.idx <- seq_len(nrow(feat))
-        rm.unmapped <- FALSE
-    }
-
+    
+    switch(filter.method,
+        "abundance" = {
+            # remove features whose abundance is never above the threshold value
+            # (e.g. 0.5%) in any of the samples
+            f.max <- rowMaxs(feat)
+            f.idx <- which(f.max >= cutoff)
+        },
+        "cum.abundance" = {
+            # remove features with very low abundance in all samples i.e. ones that
+            # are never among the most abundant entities that collectively make up
+            # (1-cutoff) of the reads in any sample
+            f.idx <- vector("numeric", 0)
+            # sort features per sample and apply cumsum to identify how many
+            # collectively have weight K
+            for (s in seq_len(ncol(feat))) {
+                srt <- sort(feat[, s], index.return = TRUE)
+                cs <- cumsum(srt$x)
+                m <- max(which(cs < cutoff))
+                f.idx <- union(f.idx, srt$ix[-(seq_len(m))])
+            }
+            # an index of those features that collectively make up more than 1-K of
+            # the read mass in any sample
+            f.idx <- sort(f.idx)
+        },
+        "prevalence" = {
+            # remove features with low prevalence across samples i.e. ones that are
+            # 0 (undetected) in more than (1-cutoff) proportion of samples
+            f.idx <- which(rowSums(feat > 0) / ncol(feat) > cutoff)
+        },
+        "variance" = {
+            # remove features with very low variance
+            f.var <- rowVars(feat)
+            f.idx <- which(f.var >= cutoff)
+        },
+        "pass" = {
+            f.idx <- seq_len(nrow(feat))
+            rm.unmapped <- FALSE
+        },
+        stop("filter.method '", filter.method, "' is not supported.")
+    )
 
 
     ### postprocessing and output generation
+    if (!is.logical(rm.unmapped)){
+        stop("rm.unmapped should be logical, exiting...\n")
+    }
     if (rm.unmapped) {
         if (verbose > 2)
             message("+++ checking for unmapped reads")
@@ -234,7 +242,7 @@ filter.features <- function(siamcat,
                 message(msg)
             }
             if (verbose > 1){
-                msg <- paste("+++ removed", sum(unm.idx),
+                msg <- paste("+++ removed", length(unm.idx),
                     "features corresponding to UNMAPPED reads")
                 message(msg)
             }
