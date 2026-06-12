@@ -12,6 +12,7 @@
 #' @param ... additional arguments
 #' @param feat feature information for SIAMCAT (see details)
 #' @param label label information for SIAMCAT (see details)
+#' @param taxonomy (optional) taxonomy information for SIAMCAT (see detail)
 #' @param meta (optional) metadata information for SIAMCAT (see details)
 #' @param phyloseq (optional) a phyloseq object for the creation of an SIAMCAT
 #' object (see details)
@@ -30,6 +31,10 @@
 #' matrix, a data.frame, or a \link[phyloseq]{otu_table-class}. The columns
 #' should correspond to the different samples (e.g. patients) and the rows the
 #' different features (e.g. taxa). Columns and rows should be named.
+#' \item \code{taxonomy} taxonomy information for the taxa in \code{feat}.
+#' Should be either a data.frame (with the rownames corresponding to the
+#' rownames of the feature matrix) or an object of class
+#' \link[phyloseq]{taxonomyTable-class}.
 #' \item \code{meta} metadata information for the different samples in the
 #' feature matrix. Metadata is optional for the SIAMCAT workflow. Should be
 #' either a data.frame (with the rownames corresponding to the sample
@@ -37,7 +42,12 @@
 #' \link[phyloseq]{sample_data-class}
 #' \item \code{phyloseq} Alternatively to supplying both feat and meta,
 #' SIAMCAT can also work with a phyloseq object containing an otu_table and
-#' other optional slots (like sample_data for meta-variables).}
+#' other optional slots (like sample_data for meta-variables). Pay attention
+#' to the fact that manually constructing phyloseq object with mismatches between
+#' sample_data, otu_table, and tax_table leads to silent removal of some taxa
+#' or samples by the phyloseq constructor. Use of the higher-level siamcat
+#' function is suggested to check and raise errors in case of mismatches.
+#' }
 #'
 #' Notice: do supply \strong{either} the feature information as
 #' matrix/data.frame/otu_table (and optionally metadata) \strong{or} a
@@ -79,7 +89,7 @@
 #'     meta=meta.crc.zeller,
 #'     label='Group',
 #'     case='CRC')
-siamcat <- function(..., feat=NULL, label=NULL, meta=NULL, phyloseq=NULL,
+siamcat <- function(..., feat=NULL, label=NULL, taxonomy=NULL, meta=NULL, phyloseq=NULL,
         validate=TRUE, verbose=3) {
     
     if (is.null(phyloseq) && is.null(feat)){
@@ -145,7 +155,8 @@ siamcat <- function(..., feat=NULL, label=NULL, meta=NULL, phyloseq=NULL,
 
     # validate features and metadata
     feat <- validate.features(feat)
-    meta <- validate.metadata(meta)
+    taxonomy <- validate.taxonomy(taxonomy, feat)
+    meta <- validate.metadata(meta, feat)
     
     # make Phyloseq object properly
     if (any(vapply(names(other.args), is.component.class, "phyloseq",
@@ -155,8 +166,9 @@ siamcat <- function(..., feat=NULL, label=NULL, meta=NULL, phyloseq=NULL,
                 "phyloseq", FUN.VALUE = logical(1))]
             arglistphyloseq$otu_table <- feat
             arglistphyloseq$sam_data <- meta
+            arglistphyloseq$tax_table <- taxonomy
     } else {
-        arglistphyloseq <- list('otu_table'=feat, 'sam_data'=meta)
+        arglistphyloseq <- list('otu_table'=feat, 'sam_data'=meta, 'tax_table'=taxonomy)
     }
     other.args$phyloseq <- do.call("new", c(list(Class = "phyloseq"),
         arglistphyloseq))
@@ -340,7 +352,11 @@ validate.label <- function(label, feat, meta, case, control, verbose){
 
 # check meta-data object
 #' @keywords internal
-validate.metadata <- function(meta){
+validate.metadata <- function(meta, feat){
+   if (!all(colnames(feat) %in% rownames(meta))){
+        # phyloseq would silently drop otherwise
+        stop("Not all the samples in 'feat' have corresponding entries in 'meta'. Aborting as this would result in dropped samples.")
+   }
     if (is.null(meta)){
         return(NULL)
     }
@@ -355,5 +371,29 @@ validate.metadata <- function(meta){
         }
         meta <- sample_data(meta)
         return(meta)
+    }
+}
+
+# check taxonomy object
+#' @keywords internal
+validate.taxonomy <- function(tax, feat){
+   if (!all(rownames(feat) %in% rownames(tax))){
+        # phyloseq would silently drop otherwise
+        stop("Not all the taxa in 'feat' have corresponding entries in 'taxonomy'. Aborting as this would result in dropped taxa.")
+   }
+   if (is.null(tax)){
+        return(NULL)
+    }
+    if (is(tax, 'taxonomyTable')){
+        return(tax)
+    }
+    if (is.data.frame(tax)){
+        if (is(tax, 'tbl')){
+            msg <- paste0("Tibbles are not supported. Metadata needs to be",
+                        " a dataframe with rownames!")
+            stop(msg)
+        }
+        tax <- tax_table(tax)
+        return(tax)
     }
 }
