@@ -138,11 +138,12 @@
 #'
 #' # simple working example
 #' siamcat_example <- train.model(siamcat_example, method='lasso')
-train.model <- function(siamcat, method = "lasso",
-    measure = NULL, param.set = NULL,
-    grid.size=11, min.nonzero=5, perform.fs = FALSE,
-    param.fs = list(no_features = 100, method = "AUC", direction="absolute"),
-    feature.type='normalized', verbose = 1) {
+train.model <- function(
+    siamcat, method="lasso", measure=NULL, param.set=NULL,
+    grid.size=11, min.nonzero=5, perform.fs=FALSE,
+    param.fs=list(no_features=100, method="AUC", direction="absolute"),
+    feature.type='normalized', verbose=1
+) {
 
     if (verbose > 1)
         message("+ starting train.model")
@@ -166,7 +167,7 @@ train.model <- function(siamcat, method = "lasso",
         feat <- get.norm_feat.matrix(siamcat)
     }
 
-    # make sure the names fit
+    # make sure the names are syntactically valid
     rownames(feat) <- make.names(rownames(feat))
 
     # checks
