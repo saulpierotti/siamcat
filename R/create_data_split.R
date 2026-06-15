@@ -73,183 +73,186 @@
 #' # simple working example
 #' siamcat_split <- create.data.split(siamcat_example, num.folds=10, 
 #' num.resample=5, stratify=TRUE)
-create.data.split <- function(siamcat, num.folds = 2, num.resample = 1,
-    stratify = TRUE, inseparable = NULL, verbose = 1) {
+create.data.split <- function(
+    siamcat, num.folds=2, num.resample=1,
+    stratify=TRUE, inseparable=NULL, verbose=1
+) {
 
-        if (verbose > 1)
-            message("+ starting create.data.split")
-        s.time <- proc.time()[3]
+    if (verbose > 1)
+        message("+ starting create.data.split")
+    s.time <- proc.time()[3]
 
-        label    <- label(siamcat)
-        if (label$type == 'CONTINUOUS'){
-            stratify <- FALSE
-        } else if (label$type=='BINARY') {
-            group.numbers <- vapply(label$info,
-                                    FUN = function(x){
-                                        sum(label$label == x)},
-                                    FUN.VALUE = integer(1))
-            if (any(group.numbers <= 5)){
-                msg <- paste0("Data set has only:\n",
-                    paste0(names(group.numbers)[1], "\t", group.numbers[1]),
-                    "\n",
-                    paste0(names(group.numbers)[2], "\t", group.numbers[2]),
-                    "\nThis is not enough for SIAMCAT to proceed!")
-                stop(msg)
-            }
-        } else if (label$type == 'TEST'){
-            stop("Cannot create data split for TEST object!")
+    label <- label(siamcat)
+    if (label$type == 'CONTINUOUS'){
+        stratify <- FALSE
+    } else if (label$type=='BINARY') {
+        # check that there are enough samples in each class for the CV to work
+        group.numbers <- vapply(label$info,
+                                FUN = function(x){
+                                    sum(label$label == x)},
+                                FUN.VALUE = integer(1))
+        if (any(group.numbers <= 5)){
+            msg <- paste0("Data set has only:\n",
+                paste0(names(group.numbers)[1], "\t", group.numbers[1]),
+                "\n",
+                paste0(names(group.numbers)[2], "\t", group.numbers[2]),
+                "\nThis is not enough for SIAMCAT to proceed!")
+            stop(msg)
         }
+    } else if (label$type == 'TEST'){
+        stop("Cannot create data split for TEST object!")
+    }
 
 
 
-        labelNum <- as.numeric(label$label)
-        names(labelNum) <- names(label$label)
-        exm.ids <- names(labelNum)
+    labelNum <- as.numeric(label$label)
+    names(labelNum) <- names(label$label)
+    exm.ids <- names(labelNum)
 
-        if (is.null(inseparable) || inseparable == "" ||
-                toupper(inseparable) == "NULL" ||
-                toupper(inseparable) == "NONE" ||
-                toupper(inseparable) == "UNKNOWN") {
-            inseparable <- NULL
-        }
+    if (is.null(inseparable) || inseparable == "" ||
+            toupper(inseparable) == "NULL" ||
+            toupper(inseparable) == "NONE" ||
+            toupper(inseparable) == "UNKNOWN") {
+        inseparable <- NULL
+    }
 
-        # parse label description
-        classes <- sort(label$info)
+    # parse label description
+    classes <- sort(label$info)
 
-        ### check arguments
-        if (num.resample < 1) {
-            if (verbose > 1){
-                msg <- paste0("+++ Resetting num.resample = 1 (", 
-                    num.resample, 
-                    " is an invalid number of resampling rounds)")
-                message(msg)
-            }
-            num.resample <- 1
-        }
-        if (num.folds < 2) {
-            if (verbose > 1){
-                msg <- paste0("+++ Resetting num.folds = 2 (", 
-                    num.folds, " is an invalid number of folds)")
-                message(msg)
-            }
-            num.folds <- 2
-        }
-        if (!is.null(inseparable) && stratify) {
-            if (verbose > 1){
-                msg <- paste0("+++ Resetting stratify to FALSE ",
-                    "(Stratification is not supported when ",
-                    "inseparable is given")
-                message(msg)
-            }
-            stratify <- FALSE
-        }
-        if (num.folds >= length(labelNum)) {
-            if (verbose > 1)
-                message("+++ Performing un-stratified",
-                        "leave-one-out (LOO) cross-validation")
-            stratify <- FALSE
-            num.folds <- length(labelNum)
-        }
-        if (!is.null(inseparable) && is.null(meta(siamcat))) {
-            stop("Meta-data must be provided if the inseparable parameter is not
-                NULL")
-        }
-        if (!is.null(inseparable)) {
-            if (is.numeric(inseparable) && length(inseparable) == 1) {
-                stopifnot(inseparable <= ncol(meta(siamcat)))
-            } else if (is.character(inseparable) &&
-                    length(inseparable == 1)) {
-                stopifnot(inseparable %in% colnames(meta(siamcat)))
-            } else {
-                stop(
-                    "Inseparable parameter must be either a single column index
-                    or a single column name of metadata matrix"
-                )
-            }
-            }
-
-        train.list <- list(NULL)
-        test.list <- list(NULL)
-
-
-        for (r in seq_len(num.resample)) {
-            labelNum <- sample(labelNum)
-            if (label$type == 'BINARY'){
-                foldid <-
-                    assign.fold.binary(
-                        label = labelNum,
-                        num.folds = num.folds,
-                        stratified = stratify,
-                        inseparable = inseparable,
-                        meta = meta(siamcat)[names(labelNum),],
-                        verbose = verbose)
-            } else if (label$type == 'CONTINUOUS'){
-                foldid <-
-                    assign.fold.regr(
-                        label = labelNum,
-                        num.folds = num.folds,
-                        inseparable = inseparable,
-                        meta = meta(siamcat)[names(labelNum),],
-                        verbose = verbose)
-            }
-            names(foldid) <- names(labelNum)
-            stopifnot(length(labelNum) == length(foldid))
-            stopifnot(length(unique(foldid)) == num.folds)
-
-            train.temp <- list(NULL)
-            test.temp <- list(NULL)
-
-            if (verbose > 1){
-                msg <- paste("+ resampling round", r)
-                message(msg)
-            }
-            for (f in seq_len(num.folds)) {
-                # make sure each fold contains examples from all classes for
-                # stratify==TRUE should be tested before assignment of
-                # test/training set
-                if (stratify) {
-                    stopifnot(all(sort(unique(labelNum[foldid == f])) ==
-                        classes))
-                }
-                # select test examples
-                test.idx <- which(foldid == f)
-                train.idx <- which(foldid != f)
-                train.temp[f] <- list(names(foldid)[train.idx])
-                test.temp[f] <- list(names(foldid)[test.idx])
-                # for startify==FALSE, all classes must only be present in the
-                # training set e.g. in leave-one-out CV, the test fold
-                # cannot contain all classes
-                if (!stratify && label$type == 'BINARY') {
-                    stopifnot(all(sort(unique(labelNum[foldid != f]))
-                        == classes))
-                }
-                stopifnot(length(intersect(train.idx, test.idx)) == 0)
-                if (verbose > 2){
-                    msg <- paste("+++ fold ", f, " contains ",
-                        sum(foldid == f), " samples")
-                    message(msg)
-                }
-            }
-            train.list[[r]] <- train.temp
-            test.list[[r]] <- test.temp
-        }
-
-        data_split(siamcat) <- list(
-            training.folds = train.list,
-            test.folds = test.list,
-            num.resample = num.resample,
-            num.folds = num.folds
-        )
-        e.time <- proc.time()[3]
+    ### check arguments
+    if (num.resample < 1) {
         if (verbose > 1){
-            msg <- paste("+ finished create.data.split in",
-                formatC(e.time - s.time, digits = 3),"s")
+            msg <- paste0("+++ Resetting num.resample = 1 (", 
+                num.resample, 
+                " is an invalid number of resampling rounds)")
             message(msg)
         }
-        if (verbose == 1)
-            message("Features splitted for cross-validation successfully.")
-        return(siamcat)
+        num.resample <- 1
+    }
+    if (num.folds < 2) {
+        if (verbose > 1){
+            msg <- paste0("+++ Resetting num.folds = 2 (", 
+                num.folds, " is an invalid number of folds)")
+            message(msg)
         }
+        num.folds <- 2
+    }
+    if (!is.null(inseparable) && stratify) {
+        if (verbose > 1){
+            msg <- paste0("+++ Resetting stratify to FALSE ",
+                "(Stratification is not supported when ",
+                "inseparable is given")
+            message(msg)
+        }
+        stratify <- FALSE
+    }
+    if (num.folds >= length(labelNum)) {
+        if (verbose > 1)
+            message("+++ Performing un-stratified",
+                    "leave-one-out (LOO) cross-validation")
+        stratify <- FALSE
+        num.folds <- length(labelNum)
+    }
+    if (!is.null(inseparable) && is.null(meta(siamcat))) {
+        stop("Meta-data must be provided if the inseparable parameter is not
+            NULL")
+    }
+    if (!is.null(inseparable)) {
+        if (is.numeric(inseparable) && length(inseparable) == 1) {
+            stopifnot(inseparable <= ncol(meta(siamcat)))
+        } else if (is.character(inseparable) &&
+                length(inseparable == 1)) {
+            stopifnot(inseparable %in% colnames(meta(siamcat)))
+        } else {
+            stop(
+                "Inseparable parameter must be either a single column index
+                or a single column name of metadata matrix"
+            )
+        }
+        }
+
+    train.list <- list(NULL)
+    test.list <- list(NULL)
+
+
+    for (r in seq_len(num.resample)) {
+        labelNum <- sample(labelNum)
+        if (label$type == 'BINARY'){
+            foldid <-
+                assign.fold.binary(
+                    label = labelNum,
+                    num.folds = num.folds,
+                    stratified = stratify,
+                    inseparable = inseparable,
+                    meta = meta(siamcat)[names(labelNum),],
+                    verbose = verbose)
+        } else if (label$type == 'CONTINUOUS'){
+            foldid <-
+                assign.fold.regr(
+                    label = labelNum,
+                    num.folds = num.folds,
+                    inseparable = inseparable,
+                    meta = meta(siamcat)[names(labelNum),],
+                    verbose = verbose)
+        }
+        names(foldid) <- names(labelNum)
+        stopifnot(length(labelNum) == length(foldid))
+        stopifnot(length(unique(foldid)) == num.folds)
+
+        train.temp <- list(NULL)
+        test.temp <- list(NULL)
+
+        if (verbose > 1){
+            msg <- paste("+ resampling round", r)
+            message(msg)
+        }
+        for (f in seq_len(num.folds)) {
+            # make sure each fold contains examples from all classes for
+            # stratify==TRUE should be tested before assignment of
+            # test/training set
+            if (stratify) {
+                stopifnot(all(sort(unique(labelNum[foldid == f])) ==
+                    classes))
+            }
+            # select test examples
+            test.idx <- which(foldid == f)
+            train.idx <- which(foldid != f)
+            train.temp[f] <- list(names(foldid)[train.idx])
+            test.temp[f] <- list(names(foldid)[test.idx])
+            # for startify==FALSE, all classes must only be present in the
+            # training set e.g. in leave-one-out CV, the test fold
+            # cannot contain all classes
+            if (!stratify && label$type == 'BINARY') {
+                stopifnot(all(sort(unique(labelNum[foldid != f]))
+                    == classes))
+            }
+            stopifnot(length(intersect(train.idx, test.idx)) == 0)
+            if (verbose > 2){
+                msg <- paste("+++ fold ", f, " contains ",
+                    sum(foldid == f), " samples")
+                message(msg)
+            }
+        }
+        train.list[[r]] <- train.temp
+        test.list[[r]] <- test.temp
+    }
+
+    data_split(siamcat) <- list(
+        training.folds = train.list,
+        test.folds = test.list,
+        num.resample = num.resample,
+        num.folds = num.folds
+    )
+    e.time <- proc.time()[3]
+    if (verbose > 1){
+        msg <- paste("+ finished create.data.split in",
+            formatC(e.time - s.time, digits = 3),"s")
+        message(msg)
+    }
+    if (verbose == 1)
+        message("Features splitted for cross-validation successfully.")
+    return(siamcat)
+}
 
 
 #' @keywords internal
