@@ -384,23 +384,23 @@ validate.metadata <- function(meta, feat){
 # check taxonomy object
 #' @keywords internal
 validate.taxonomy <- function(tax, feat){
+   if (is.null(tax)){
+       return(NULL)
+   }
    if (!all(rownames(feat) %in% rownames(tax))){
         # phyloseq would silently drop otherwise
         stop("Not all the taxa in 'feat' have corresponding entries in 'taxonomy'. Aborting as this would result in dropped taxa.")
    }
-   if (is.null(tax)){
-        return(NULL)
-    }
-    if (is(tax, 'taxonomyTable')){
-        return(tax)
-    }
-    if (is.data.frame(tax)){
-        if (is(tax, 'tbl')){
-            msg <- paste0("Tibbles are not supported. Metadata needs to be",
-                        " a dataframe with rownames!")
-            stop(msg)
-        }
-        tax <- tax_table(tax)
-        return(tax)
-    }
+   if (is(tax, 'taxonomyTable')){
+       return(tax)
+   }
+   if (is.data.frame(tax)){
+       if (is(tax, 'tbl')){
+           msg <- paste0("Tibbles are not supported. Metadata needs to be",
+                       " a dataframe with rownames!")
+           stop(msg)
+       }
+       tax <- tax_table(tax)
+       return(tax)
+   }
 }
