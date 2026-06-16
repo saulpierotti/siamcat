@@ -181,6 +181,8 @@ train.model <- function(
     }
     data.split <- data_split(siamcat)
 
+    # TODO: ok to here
+
     # Create List to save models.
     models.list <- list()
     num.runs <- data.split$num.folds * data.split$num.resample

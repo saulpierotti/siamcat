@@ -497,6 +497,8 @@ check.siamcat <- function(object){
 #'
 #' @slot eval_data list containing different evaluation metrics, created by
 #' calling the \link{evaluate.predictions} function
+#' 
+#' @slot versions list containing package versions used to build the object
 #'
 #' @exportClass siamcat
 setClass(
@@ -510,7 +512,8 @@ setClass(
         data_split = "list",
         model_list = "list",
         pred_matrix = "matrix",
-        eval_data = "list"
+        eval_data = "list",
+        versions = "list"
     ),
     validity=check.siamcat
 )

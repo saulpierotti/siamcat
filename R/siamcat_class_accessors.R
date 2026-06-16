@@ -962,3 +962,33 @@ setGeneric("eval_data", function(siamcat, verbose=1)
 setMethod("eval_data", "siamcat", function(siamcat, verbose=1) {
     accessSlot(siamcat, "eval_data", verbose)
 })
+
+###############################################################################
+#' @title Retrieve version numbers
+#'
+#' @description Function to retrieve the SIAMCAT and phyloseq version number
+#' from a SIAMCAT object
+#'
+#' @usage versions(siamcat)
+#'
+#' @param siamcat (Required). A \link{siamcat-class} object
+#' that contains evaluation data
+#'
+#' @return A list with package names and version numbers
+#'
+#' @details The functions returns a list containing the package version numbers
+#' from a SIAMCAT object.
+#'
+#' @export
+#'
+#' @rdname eval_data-methods
+#'
+#' @docType methods
+#'
+#' @examples
+#' versions(siamcat_example)
+setGeneric("versions", function(siamcat, verbose=1)
+    standardGeneric("versions"))
+setMethod("versions", "siamcat", function(siamcat, verbose=1) {
+    accessSlot(siamcat, "versions", verbose)
+})

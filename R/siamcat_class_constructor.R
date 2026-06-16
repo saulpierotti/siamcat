@@ -116,6 +116,12 @@ siamcat <- function(..., feat=NULL, label=NULL, taxonomy=NULL, meta=NULL, phylos
     # Remove names from arglist. Will replace them based on their class
     names(other.args) <- NULL
 
+    # save version numbers
+    other.args$versions <- list(
+        "phyloseq" = utils::packageVersion("phyloseq"),
+        "SIAMCAT"  = utils::packageVersion("SIAMCAT")
+    )
+
     if (!is.null(other.args)){
         # ignore all but component data classes.
         component_classes <- get.component.classes("both")
@@ -224,7 +230,8 @@ get.component.classes <- function(class) {
             "data_split",
             "model_list",
             "pred_matrix",
-            "eval_data"
+            "eval_data",
+            "versions"
         )
     #class names
     names(component.classes.siamcat) <-

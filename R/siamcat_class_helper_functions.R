@@ -193,6 +193,13 @@ setMethod("show", "siamcat", function(object) {
         }
     }
 
+    # print version
+    v <- versions(object, FALSE)
+    if (is.list(v) && "SIAMCAT" %in% names(v)) {
+        v <- as.character(versions(object)[["SIAMCAT"]])
+        cat(paste("versions()             Package version:     ", v))
+    }
+
     # print otu_table (always there).
     cat("\ncontains phyloseq-class experiment-level object @phyloseq:",
         fill = TRUE)
@@ -230,5 +237,5 @@ setMethod("show", "siamcat", function(object) {
         cat(paste("phyloseq@refseq()      ", class(refseq(physeq(object)))[1],
             ": [ ", ntaxa(refseq(physeq(object))), " reference sequences ]",
             sep = ""), fill = TRUE)
-    }
+    }   
 })
