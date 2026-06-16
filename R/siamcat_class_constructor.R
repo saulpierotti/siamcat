@@ -118,8 +118,9 @@ siamcat <- function(..., feat=NULL, label=NULL, taxonomy=NULL, meta=NULL, phylos
 
     # save version numbers
     other.args$versions <- list(
+        "SIAMCAT"  = utils::packageVersion("SIAMCAT"),
         "phyloseq" = utils::packageVersion("phyloseq"),
-        "SIAMCAT"  = utils::packageVersion("SIAMCAT")
+        "mlr3"     = utils::packageVersion("mlr3")
     )
 
     if (!is.null(other.args)){

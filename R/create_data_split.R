@@ -199,10 +199,17 @@ create.data.split <- function(
         data <- data.frame(labelNum=labelNum)
     }
     rownames(data) <- names(labelNum)
-    
+
     # generate task
     if (label$type == 'BINARY') {
-        tsk <- as_task_classif(data, target="labelNum", id="siamcat", positive=label$info[2])
+        if ("labelCat" %in% colnames(data)) {
+            stop(
+                "The name 'labelCat' is reserved for the internal data split and cannot be",
+                " used as a column name in the metadata. Please rename this column and try again."
+            )
+        }
+        data[["labelCat"]] <- as.character(data[["labelNum"]])
+        tsk <- as_task_classif(data, target="labelCat", id="siamcat", positive=as.character(label$info[2]))
     } else if (label$type == 'CONTINUOUS') {
         tsk <- as_task_regr(data, target="labelNum", id="siamcat")
     } else {
@@ -263,8 +270,8 @@ create.data.split <- function(
 
     # reset num.resample and num.folds if doing LOO
     if (loo) {
-        if (num.resample != 1 || stratify) {
-            warning(
+        if (verbose > 1 && (num.resample != 1 || stratify)) {
+            message(
                 "Performing leave-one-(group)-out (LOO) cross-validation. Ignoring stratification and num.resample parameters."
             )
         }
@@ -277,7 +284,7 @@ create.data.split <- function(
     # maximum number of examples for the class with
     # the fewest training examples.
     if (stratify) {
-        if (label$type == 'BINARY' && any(as.data.frame(table(label))[, 2] < num.folds)) {
+        if (label$type == 'BINARY' && any(as.data.frame(table(label$label))[, 2] < num.folds)) {
             stop(
                 "+++ Number of CV folds is too large for this data set to
                 maintain stratification. Reduce num.folds or turn
@@ -289,7 +296,7 @@ create.data.split <- function(
                 "Stratified CV is not supported for regression tasks."
             )
         }
-        tsk$set_col_roles("labelNum", c("target", "stratum"))
+        tsk$set_col_roles("labelCat", c("target", "stratum"))
     }
 
     if (loo) {

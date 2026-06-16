@@ -153,9 +153,25 @@ setMethod("show", "siamcat", function(object) {
 
     # data split
     if (!is.null(data_split(object, verbose=0))) {
-        cat(paste("data_split()           Data split:          ",
-            data_split(object)$num.resample, "cv rounds with",
-            data_split(object)$num.folds, "folds", sep = " "), fill = TRUE)
+        if (data_split(object)$loo) {
+            s <- "leave-one-out cross validation"
+        } else {
+            stopifnot(!is.na(data_split(object)$num.resample) && !is.na(data_split(object)$num.folds))
+            s <- sprintf(
+                "%s cv rounds with %s folds",
+                data_split(object)$num.resample,
+                data_split(object)$num.folds
+            )
+        }
+        if (!is.null(data_split(object)$inseparable)) {
+            stopifnot(is.character(data_split(object)$inseparable))
+            s <- c(s, sprintf(", grouped by %s", data_split(object)$inseparable))
+        }
+        if (isTRUE(data_split(object)$stratify)) {
+            s <- c(s, ", stratified")
+        }
+        s <- paste(s, collapse="")
+        cat(paste("data_split()           Data split:          ", s, sep = " "), fill = TRUE)
     }
 
     # model list
@@ -197,7 +213,10 @@ setMethod("show", "siamcat", function(object) {
     v <- versions(object, FALSE)
     if (is.list(v) && "SIAMCAT" %in% names(v)) {
         v <- as.character(versions(object)[["SIAMCAT"]])
-        cat(paste("versions()             Package version:     ", v))
+        cat(
+            paste("versions()             Package version:     ", v),
+            fill=TRUE
+        )
     }
 
     # print otu_table (always there).

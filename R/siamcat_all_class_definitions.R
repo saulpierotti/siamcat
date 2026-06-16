@@ -221,63 +221,54 @@ check.norm.feat <- function(object){
 check.data.split <- function(object){
     errors <- character()
     # check names
-    if (!all(names(object) == c('training.folds', 'test.folds',
-                                'num.resample', 'num.folds'))){
+    if (!all(names(object) == c('task', 'resampling',
+        'num.resample', 'num.folds', 'loo', 'stratify', 'inseparable'))){
         msg <- 'Data split does not contain all needed entries!'
         errors <- c(errors, msg)
     }
     # check that num.resample and num.folds are numbers
-    if (length(object$num.resample) != 1 |
-        !is.numeric(object$num.resample)){
-        msg <- 'num.resample should be numeric and of length 1!'
+    if (length(object$num.resample) != 1 ||
+        (!is.na(object$num.resample) && !is.numeric(object$num.resample))){
+        msg <- 'num.resample should be NA or numeric of length 1!'
         errors <- c(errors, msg)
     }
-    if (length(object$num.folds) != 1 |
-        !is.numeric(object$num.folds)){
-        msg <- 'num.folds should be numeric and of length 1!'
+    if (length(object$num.folds) != 1 ||
+        (!is.na(object$num.resample) && !is.numeric(object$num.resample))){
+        msg <- 'num.folds should be NA or numeric of length 1!'
         errors <- c(errors, msg)
     }
-    # check that training.folds is a list (of the right length)
-    if (!is.list(object$training.folds)){
-        msg <- 'training.folds should be a list!'
+    # check loo
+    if (length(object$loo) != 1 ||
+        !is.logical(object$loo)){
+        msg <- 'loo should be logical and of length 1!'
         errors <- c(errors, msg)
     }
-    if (length(object$training.folds) != object$num.resample){
-        msg <- 'training.folds should be of length num.resample!'
+    # check stratify
+    if (length(object$stratify) != 1 ||
+        !is.logical(object$stratify)){
+        msg <- 'stratify should be logical and of length 1!'
         errors <- c(errors, msg)
     }
-    if (!all(vapply(object$training.folds, length,
-            FUN.VALUE = numeric(1)) == object$num.folds)){
-        msg <- 'All training.folds should be of length num.folds!'
-        errors <- c(errors, msg)
+    # check inseparable
+    if (!is.null(object$inseparable)) {
+        if (length(object$inseparable) != 1 ||
+            !is.character(object$inseparable)){
+            msg <- 'inseparable should be NULL or charachter of length 1!'
+            errors <- c(errors, msg)
+        }
     }
-    # same for test.folds
-    if (!is.list(object$test.folds)){
-        msg <- 'test.folds should be a list!'
+    # check task
+    if (!inherits(object$task, "Task")){
+        msg <- 'task should be an mlr3 Task object!'
         errors <- c(errors, msg)
+        
     }
-    if (length(object$test.folds) != object$num.resample){
-        msg <- 'test.folds should be of length num.resample!'
+    # check resampling
+    if (!inherits(object$resampling, "Resampling")){
+        msg <- 'resampling should be an mlr3 Resampling object!'
         errors <- c(errors, msg)
+        
     }
-    if (!all(vapply(object$test.folds, length,
-            FUN.VALUE = numeric(1)) == object$num.folds)){
-        msg <- 'All test.folds should be of length num.folds!'
-        errors <- c(errors, msg)
-    }
-    # check that no samples are in training and test fold at the same time
-    test.consistency <- any(c(vapply(seq_len(object$num.resample),
-        FUN=function(x){vapply(seq_len(object$num.folds),
-            FUN=function(y){
-                any(object$test.folds[[x]][[y]] %in%
-                    object$training.folds[[x]][[y]])
-                }, FUN.VALUE = logical(1))
-            }, FUN.VALUE=logical(object$num.folds))))
-    if (test.consistency){
-        msg <- 'Some samples are in both training and test folds!'
-        errors <- c(errors, msg)
-    }
-
 
     if (length(errors) == 0) NULL else errors
 }

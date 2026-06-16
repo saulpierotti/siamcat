@@ -39,7 +39,7 @@ accessSlot <- function(siamcat, slot, verbose=1) {
 
     # make sure that NULL is returned when the object is empty
     if (slot %in% c(
-        'eval_data', 'data_split', 'model_list', 'norm_feat', 'filt_feat')){
+        'eval_data', 'data_split', 'model_list', 'norm_feat', 'filt_feat', 'versions')){
         if (length(out) == 0) {
             out <- NULL
         }
