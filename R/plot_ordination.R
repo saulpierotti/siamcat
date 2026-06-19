@@ -78,16 +78,17 @@ plot.ordination.siamcat <- function(
         if (is.null(name.color.by)) name.color.by <- color.by
         p <- phyloseq::plot_ordination(siamcat@phyloseq, ord, color=color.by) +
             labs(x=xlab, y=ylab, color=name.color.by)
+        # override the shape
+        p$layers[[1]]$aes_params$shape <- 1
         meta_col <- meta[[color.by]]
         if (is.numeric(meta_col)) {
             if (is.null(palette)) palette <- "RdBu"
             p <- p + scale_color_distiller(palette = palette, labels = label_number(scale = 1e-6, suffix = "M"))
         } else {
             if (is.null(palette)) palette <- okabe_palette
-            if (length(unique(meta_col)) > length(okabe_palette)) {
-                stop("Number of groups in color.by exceeds the number of colors in the palette.")
-            }
-            p <- p + scale_color_manual(values = palette)
+            if (length(unique(meta_col)) <= length(okabe_palette)) {
+                p <- p + scale_color_manual(values = palette)
+            } else warning("Refusing to set palette with fewer levels than groups in 'group.by'.")
         }
     } else if (!is.null(color.by)) {
         stop("color.by column not found in sample data.")

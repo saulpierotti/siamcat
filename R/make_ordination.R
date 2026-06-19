@@ -19,13 +19,30 @@
 #' @param distance string, distance metric passed to
 #' \code{\link[phyloseq]{ordinate}}, defaults to \code{"bray"}
 #' (Bray-Curtis dissimilarity)
+#' 
+#' @param feature.type string, on which type of features should the function
+#' work? Can be either \code{"original"}, \code{"filtered"}.
+#' Please only change this paramter if you know what
+#' you are doing!
 
-make.ordination <- function(siamcat, distance="bray", method="PCoA"){
+make.ordination <- function(siamcat, distance="bray", method="PCoA", feature.type="filtered"){
+    # get the right features
+    if (feature.type == 'original'){
+        feat <- get.orig_feat.matrix(siamcat)
+        if (verbose > 1) message('+ using original features')
+    } else if (feature.type == 'filtered'){
+        if (is.null(filt_feat(siamcat, verbose=0))){
+            stop('Features have not yet been filtered, exiting...\n')
+        }
+        feat <- get.filt_feat.matrix(siamcat)
+    } else if (feature.type == 'normalized'){
+        stop("Normalised features are not allowed for ordination.")
+    }
+    temp_phyloseq <- phyloseq(otu_table=otu_table(feat, taxa_are_rows=TRUE))
     ordination(siamcat) <- list(
-        ord = phyloseq::ordinate(siamcat@phyloseq, method = method, distance = distance),
+        ord = phyloseq::ordinate(temp_phyloseq, method = method, distance = distance),
         distance = distance,
         method = method
     )
     return(siamcat)
 }
-    
