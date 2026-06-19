@@ -46,10 +46,14 @@ calling the \link{create.data.split} function}
 that was trained, and on which kind of features it was trained, created by
 calling the \link{train.model} function}
 
-\item{\code{pred_matrix}}{matrix of predictions, created by calling the
+\item{\code{slot}}{ised_matrix matrix of predictions, created by calling the
 \link{make.predictions} function}
 
 \item{\code{eval_data}}{list containing different evaluation metrics, created by
 calling the \link{evaluate.predictions} function}
+
+\item{\code{ordination}}{list containing the ordination for a siamcat object}
+
+\item{\code{versions}}{list containing package versions used to build the object}
 }}
 

@@ -24,6 +24,8 @@ extraction toolkits are crucially needed!
 
 Authors:
 \itemize{
+  \item Jakob Wirbel \email{jakob.wirbel@embl.de} (\href{https://orcid.org/0000-0002-4073-3562}{ORCID})
+  \item Saul Pierotti \email{s.pierotti@lumc.nl} (\href{https://orcid.org/0000-0002-5942-0793}{ORCID})
   \item Konrad Zych \email{konrad.zych@embl.de} (\href{https://orcid.org/0000-0001-7426-0516}{ORCID})
   \item Georg Zeller \email{zeller@embl.de} (\href{https://orcid.org/0000-0003-1429-7485}{ORCID})
 }

@@ -4,8 +4,7 @@
 ### Heidelberg 2012-2018 GNU GPL 3.0
 
 
-#'@keywords internal
-#' ggplot plotting theme used in the package
+#'@keywords internal ggplot plotting theme used in the package
 theme_siamcat <- function(font.size){
     line.size <- 0.5
     half.line <- font.size / 2

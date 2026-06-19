@@ -312,3 +312,30 @@ setReplaceMethod("eval_data", c("siamcat", "list"), function(x, value) {
     validObject(x)
     return(x)
 })
+
+################################################################################
+#' Assign a new ordination to a SIAMCAT object
+#'
+#' @usage ordination(x) <- value
+#'
+#' @param x an object of class \link{siamcat-class}
+#' @param value a list of ordination data (see make.ordination)
+#' @export
+#' @docType methods
+#' @rdname assign-ordination
+#' @aliases assign-ordination
+#' @return none
+#' @keywords internal
+#'
+#' @examples
+#' data(siamcat_example)
+#' ordination(siamcat_example) <- ordination(siamcat_example)
+setGeneric("ordination<-", function(x, value)
+    standardGeneric("ordination<-"))
+#' @rdname assign-ordination
+#' @aliases ordination<-
+setReplaceMethod("ordination", c("siamcat", "list"), function(x, value) {
+    x@ordination <- value
+    validObject(x)
+    return(x)
+})

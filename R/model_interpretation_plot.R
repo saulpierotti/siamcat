@@ -648,11 +648,11 @@ model.interpretation.proportion.of.weights.plot <-
 
 # function to plot the percentage of features
 #' @keywords internal
-plot.percentage.of.features.plot <-
+percentage.of.features.plot <-
     function(selected.weights, all.weights,
         verbose = 0) {
         if (verbose > 2)
-            message("+ plot.percentage.of.features")
+            message("+ percentage.of.features.plot")
         par(mar = c(0.1, 6.1, 0, 1.1))
         boxplot(dim(selected.weights)[1] / colSums(all.weights != 0),
             ylim = c(0, 1))
@@ -673,7 +673,7 @@ plot.percentage.of.features.plot <-
             cex = 0.7
         )
         if (verbose > 2)
-            message("+ finished plot.percentage.of.features")
+            message("+ finished percentage.of.features.plot")
     }
 
 # function to plot the heatmap
@@ -794,6 +794,7 @@ model.interpretation.prepare.heatmap.zscore <-
             message("+ finished prepare.heatmap.zscore")
         return(t(img.data))
     }
+
 #' @keywords internal
 model.interpretation.prepare.heatmap.log <-
     function(heatmap.data, log.n0, verbose = 0) {

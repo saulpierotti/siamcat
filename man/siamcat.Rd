@@ -14,6 +14,8 @@ siamcat(..., feat=NULL, label=NULL, meta=NULL,
 
 \item{label}{label information for SIAMCAT (see details)}
 
+\item{taxonomy}{(optional) taxonomy information for SIAMCAT (see detail)}
+
 \item{meta}{(optional) metadata information for SIAMCAT (see details)}
 
 \item{phyloseq}{(optional) a phyloseq object for the creation of an SIAMCAT
@@ -43,6 +45,10 @@ In order to do so, the function needs \itemize{
 matrix, a data.frame, or a \link[phyloseq]{otu_table-class}. The columns
 should correspond to the different samples (e.g. patients) and the rows the
 different features (e.g. taxa). Columns and rows should be named.
+\item \code{taxonomy} taxonomy information for the taxa in \code{feat}.
+Should be either a data.frame (with the rownames corresponding to the
+rownames of the feature matrix) or an object of class
+\link[phyloseq]{taxonomyTable-class}.
 \item \code{meta} metadata information for the different samples in the
 feature matrix. Metadata is optional for the SIAMCAT workflow. Should be
 either a data.frame (with the rownames corresponding to the sample
@@ -50,7 +56,12 @@ names of the feature matrix) or an object of class
 \link[phyloseq]{sample_data-class}
 \item \code{phyloseq} Alternatively to supplying both feat and meta,
 SIAMCAT can also work with a phyloseq object containing an otu_table and
-other optional slots (like sample_data for meta-variables).}
+other optional slots (like sample_data for meta-variables). Pay attention
+to the fact that manually constructing phyloseq object with mismatches between
+sample_data, otu_table, and tax_table leads to silent removal of some taxa
+or samples by the phyloseq constructor. Use of the higher-level siamcat
+function is suggested to check and raise errors in case of mismatches.
+}
 
 Notice: do supply \strong{either} the feature information as
 matrix/data.frame/otu_table (and optionally metadata) \strong{or} a

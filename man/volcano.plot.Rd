@@ -5,37 +5,48 @@
 \alias{volcano.plot}
 \title{Visualize associations between features and classes as volcano plot}
 \usage{
-volcano.plot(siamcat, fn.plot=NULL, color.scheme="RdYlBu", 
-annotate=5)
+volcano.plot(siamcat)
 }
 \arguments{
 \item{siamcat}{object of class \link{siamcat-class}}
 
-\item{fn.plot}{string, filename for the pdf-plot. If \code{fn.plot} is
-\code{NULL}, the plot will be produced in the active graphics device.}
+\item{alpha}{float, override significance threshold from siamcat object}
 
-\item{color.scheme}{valid R color scheme or vector of valid R colors (must 
-be of the same length as the number of classes), defaults to \code{'RdYlBu'}}
+\item{effect.metric}{string, effect metric to use for the x-axis.
+If \code{NULL}, the default will be "beta" for linear models and "rank.biserial" for Wilcoxon tests.
+Valid options for classification tasks are "fc.log10", "beta" (only for linear models), "rank.biserial", and "auc".
+Valid options for regression tasks are "beta", "spearman".}
+
+\item{fn.plot}{string, filename for the plot (any extension supported by
+ggsave is allowed). If \code{fn.plot} is \code{NULL}, the plot will only
+be returned as a ggplot object.}
+
+\item{color.scheme}{valid R color scheme or vector of valid R colors (must
+be of length 3 for positive, negative, and non-significant associations),
+defaults to \code{c('red', 'blue', 'gray')}}
 
 \item{annotate}{integer, number of features to annotate with the name}
+
+\item{annot.size}{integer, size of annotation text}
+
+\item{annot.y.exp}{float, percent vertical expansion of the plot area
+to accommodate annotations}
+
+\item{font.size}{integer, base font size for the plot}
 }
 \value{
-Does not return anything, but produces a volcano plot based on
-association measures
+Returns the ggplot plot object
 }
 \description{
-This function creates a volcano plot to vizualize the 
+This function creates a volcano plot to visualize the
 association between features and the label
-}
-\details{
-bla bla bla
 }
 \examples{
 # Example data
 data(siamcat_example)
 
 # Simple example
-volcano.plot(siamcat_example, fn.plot='./volcano.pdf')
+volcano.plot(siamcat_example, fn.plot = "./volcano.pdf")
 }
 \keyword{SIAMCAT}
 \keyword{volcano.plot}
