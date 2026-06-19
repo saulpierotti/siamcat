@@ -38,6 +38,9 @@ make.ordination <- function(siamcat, distance="bray", method="PCoA", feature.typ
     } else if (feature.type == 'normalized'){
         stop("Normalised features are not allowed for ordination.")
     }
+    # drop samples with complete zeros to avoid mathematical errors
+    # these can arise because of filtering
+    feat <- feat[,colSums(feat) > 1e-4]
     temp_phyloseq <- phyloseq(otu_table=otu_table(feat, taxa_are_rows=TRUE))
     ordination(siamcat) <- list(
         ord = phyloseq::ordinate(temp_phyloseq, method = method, distance = distance),

@@ -72,6 +72,9 @@ plot.ordination.siamcat <- function(
     
     if (verbose > 1) message("+++ Extracting metadata")
     meta <- sample_data(siamcat@phyloseq)
+    # samples may differ because of dropping zero-abundance samples
+    # see make.ordination
+    meta <- meta[match(colnames(meta))]
 
     if (verbose > 1) message("+++ Generating plot")
     if (!is.null(color.by) && color.by %in% colnames(meta)) {
