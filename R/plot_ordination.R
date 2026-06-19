@@ -5,20 +5,11 @@
 #' code for SIAMCAT objects. Computes and plots an ordination of the
 #' phyloseq object contained within a \link{siamcat-class} object.
 #'
-#' @usage plot.ordination(siamcat, method = "PCoA", distance = "bray",
+#' @usage plot.ordination(siamcat,
 #' color.by = NULL, name.color.by = NULL, palette = NULL,
 #' font.size = 14, fn.plot = NULL)
 #'
 #' @param siamcat object of class \link{siamcat-class}
-#'
-#' @param method string, ordination method passed to
-#' \code{\link[phyloseq]{ordinate}}. Supported methods include
-#' \code{c("PCoA", "MDS", "NMDS", "DPCoA", "CAP", "RDA", "CCA", "DCA")},
-#' defaults to \code{"PCoA"}
-#'
-#' @param distance string, distance metric passed to
-#' \code{\link[phyloseq]{ordinate}}, defaults to \code{"bray"}
-#' (Bray-Curtis dissimilarity)
 #'
 #' @param color.by string, name of a column in the sample metadata to use
 #' for coloring points. If \code{NULL} (default), points are not colored.
@@ -50,7 +41,7 @@
 #'
 #' @examples
 #' # Example data
-#' data(siamcat_example)
+#' ordination(siamcat_example)
 #'
 #' # Simple PCoA with Bray-Curtis dissimilarity
 #' plot.ordination(siamcat_example)
@@ -59,18 +50,30 @@
 #' plot.ordination(siamcat_example, color.by = "disease")
 #'
 #' # NMDS with Jaccard distance, colored by a continuous variable
-#' plot.ordination(siamcat_example, method = "NMDS", distance = "jaccard",
+#' plot.ordination(siamcat_example,
 #'     color.by = "age", name.color.by = "Age (years)")
 
+# called like this to differentiate from phyloseq::plot.ordination
 plot.ordination.siamcat <- function(
-    siamcat, method="PCoA", distance="bray", color.by=NULL, name.color.by=NULL, palette=NULL, font.size=14, fn.plot = NULL
-) {
-    ord <- phyloseq::ordinate(siamcat@phyloseq, method = method, distance = distance)
+    siamcat, color.by=NULL, name.color.by=NULL, palette=NULL, font.size=14,
+    fn.plot = NULL, verbose = 1
+) { 
+    if (verbose > 1) message("+++ Starting plot.ordination")
+
+    if(is.null(ordination(siamcat))) {
+        stop("This siamcat object does not contain an ordination. Generate one with make.ordination.")
+    }
+
+    ord <- ordination(siamcat)$ord
+    distance <- ordination(siamcat)$distance
+    method <- ordination(siamcat)$method
     xlab <- sprintf("%s1 (%s)", method, distance)
     ylab <- sprintf("%s2 (%s)", method, distance)
     
+    if (verbose > 1) message("+++ Extracting metadata")
     meta <- sample_data(siamcat@phyloseq)
 
+    if (verbose > 1) message("+++ Generating plot")
     if (!is.null(color.by) && color.by %in% colnames(meta)) {
         if (is.null(name.color.by)) name.color.by <- color.by
         p <- phyloseq::plot_ordination(siamcat@phyloseq, ord, color=color.by) +
@@ -95,6 +98,7 @@ plot.ordination.siamcat <- function(
 
     p <- p + theme_siamcat(font.size)
 
+    if (verbose > 1) message("+++ Producing plot file")
     if (!is.null(fn.plot)) {
          ggsave(fn.plot, p, bg="white", width=7, height=6)
     }

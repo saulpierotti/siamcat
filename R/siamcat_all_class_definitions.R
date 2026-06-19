@@ -398,6 +398,47 @@ check.eval.data <- function(object){
 }
 
 # ##############################################################################
+# Ordination
+
+# check ordination data for validity
+#'@keywords internal
+check.ordination <- function(object){
+    errors <- character()
+    if (!is.null(object)) {
+        if (!('ord' %in% names(object))){
+            msg <- "Missing ord object in ordination object."
+            errors <- c(errors, msg)
+        }
+        if (!('method' %in% names(object))){
+            msg <- "Missing method object in ordination object."
+            errors <- c(errors, msg)
+        }
+        if (!('distance' %in% names(object))){
+            msg <- "Missing distance in ordination object."
+            errors <- c(errors, msg)
+        }
+    }
+    if (length(errors) == 0) NULL else errors
+}
+
+# check versions
+#'@keywords internal
+check.versions <- function(object){
+    errors <- character()
+    if (!is.null(object)) {
+        if (!('SIAMCAT' %in% names(object))){
+            msg <- "Missing SIAMCAT object in versions object."
+            errors <- c(errors, msg)
+        }
+        if (!('phyloseq' %in% names(object))){
+            msg <- "Missing phyloseq object in versions object."
+            errors <- c(errors, msg)
+        }
+    }
+    if (length(errors) == 0) NULL else errors
+}
+
+# ##############################################################################
 # check siamcat object for validity
 #'@keywords internal
 check.siamcat <- function(object){
@@ -438,6 +479,18 @@ check.siamcat <- function(object){
     }
     if (!is.null(eval_data(object, verbose=0))){
         temp <- check.eval.data(eval_data(object))
+        if (!is.null(temp)){
+            errors <- c(errors, temp)
+        }
+    }
+    if (!is.null(versions(object, verbose=0))){
+        temp <- check.versions(versions(object))
+        if (!is.null(temp)){
+            errors <- c(errors, temp)
+        }
+    }
+    if (!is.null(ordination(object, verbose=0))){
+        temp <- check.ordination(ordination(object))
         if (!is.null(temp)){
             errors <- c(errors, temp)
         }
@@ -492,11 +545,13 @@ check.siamcat <- function(object){
 #' that was trained, and on which kind of features it was trained, created by
 #' calling the \link{train.model} function
 #'
-#' @slot pred_matrix matrix of predictions, created by calling the
+#' @slot slot ised_matrix matrix of predictions, created by calling the
 #' \link{make.predictions} function
 #'
 #' @slot eval_data list containing different evaluation metrics, created by
 #' calling the \link{evaluate.predictions} function
+#' 
+#' @slot ordination list containing the ordination for a siamcat object
 #' 
 #' @slot versions list containing package versions used to build the object
 #'
@@ -513,6 +568,7 @@ setClass(
         model_list = "list",
         pred_matrix = "matrix",
         eval_data = "list",
+        ordination = "list",
         versions = "list"
     ),
     validity=check.siamcat

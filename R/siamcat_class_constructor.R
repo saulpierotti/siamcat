@@ -231,6 +231,7 @@ get.component.classes <- function(class) {
             "model_list",
             "pred_matrix",
             "eval_data",
+            "ordination",
             "versions"
         )
     #class names
@@ -244,7 +245,9 @@ get.component.classes <- function(class) {
             "data_split",
             "model_list",
             "pred_matrix",
-            "eval_data"
+            "eval_data",
+            "ordination",
+            "versions"
         )
 
     #slot names
@@ -360,10 +363,6 @@ validate.label <- function(label, feat, meta, case, control, verbose){
 # check meta-data object
 #' @keywords internal
 validate.metadata <- function(meta, feat){
-   if (!all(colnames(feat) %in% rownames(meta))){
-        # phyloseq would silently drop otherwise
-        stop("Not all the samples in 'feat' have corresponding entries in 'meta'. Aborting as this would result in dropped samples.")
-   }
     if (is.null(meta)){
         return(NULL)
     }
