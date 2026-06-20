@@ -74,19 +74,20 @@ plot.ordination.siamcat <- function(
     meta <- sample_data(siamcat@phyloseq)
     # samples may differ because of dropping zero-abundance samples
     # see make.ordination
-    meta <- meta[match(colnames(meta))]
+    meta <- meta[match(rownames(meta), rownames(ord$vectors))]
+    temp.phyloseq <- phyloseq(meta=meta)
 
     if (verbose > 1) message("+++ Generating plot")
     if (!is.null(color.by) && color.by %in% colnames(meta)) {
         if (is.null(name.color.by)) name.color.by <- color.by
-        p <- phyloseq::plot_ordination(siamcat@phyloseq, ord, color=color.by) +
+        p <- phyloseq::plot_ordination(temp.phyloseq, ord, color=color.by) +
             labs(x=xlab, y=ylab, color=name.color.by)
         # override the shape
         p$layers[[1]]$aes_params$shape <- 1
         meta_col <- meta[[color.by]]
         if (is.numeric(meta_col)) {
             if (is.null(palette)) palette <- "RdBu"
-            p <- p + scale_color_distiller(palette = palette, labels = label_number(scale = 1e-6, suffix = "M"))
+            p <- p + scale_color_distiller(palette = palette)
         } else {
             if (is.null(palette)) palette <- okabe_palette
             if (length(unique(meta_col)) <= length(okabe_palette)) {

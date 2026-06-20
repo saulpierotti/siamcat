@@ -20,12 +20,17 @@
 #' \code{\link[phyloseq]{ordinate}}, defaults to \code{"bray"}
 #' (Bray-Curtis dissimilarity)
 #' 
+#' @param verbose integer, control output: \code{0} for no output at all,
+#' \code{1} for only information about progress and success, \code{2} for
+#' normal level of information and \code{3} for full debug information,
+#' defaults to \code{1}
+#' 
 #' @param feature.type string, on which type of features should the function
 #' work? Can be either \code{"original"}, \code{"filtered"}.
 #' Please only change this paramter if you know what
 #' you are doing!
 
-make.ordination <- function(siamcat, distance="bray", method="PCoA", feature.type="filtered"){
+make.ordination <- function(siamcat, distance="bray", method="PCoA", feature.type="filtered", verbose=1){
     # get the right features
     if (feature.type == 'original'){
         feat <- get.orig_feat.matrix(siamcat)
