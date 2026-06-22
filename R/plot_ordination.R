@@ -74,7 +74,7 @@ plot.ordination.siamcat <- function(
     meta <- sample_data(siamcat@phyloseq)
     # samples may differ because of dropping zero-abundance samples
     # see make.ordination
-    meta <- meta[match(rownames(meta), rownames(ord$vectors))]
+    meta <- meta[rownames(meta) %in% rownames(ord$vectors)]
     temp.phyloseq <- phyloseq(meta=meta)
 
     if (verbose > 1) message("+++ Generating plot")
