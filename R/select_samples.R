@@ -19,6 +19,9 @@
 #' @param allowed.set a vector of allowed values
 #'
 #' @param allowed.range a range of allowed values
+#' 
+#' @param keep.preprocessing boolean, should feature filtering and normalisation results be preserved?
+#' Default: \code{FALSE}.
 #'
 #' @param verbose integer, control output: \code{0} for no output at all,
 #' \code{1} for only information about progress and success, \code{2} for
@@ -52,7 +55,7 @@
 #'     filter='Gender',
 #'     allowed.set=c('F'))
 select.samples <- function(siamcat, filter, allowed.set = NULL,
-    allowed.range = NULL, verbose = 1) {
+    allowed.range = NULL, keep.preprocessing = FALSE, verbose = 1) {
 
     if (verbose > 1)
         message("+ starting select.samples")
@@ -69,24 +72,30 @@ select.samples <- function(siamcat, filter, allowed.set = NULL,
         stop("Neither allowed.range nor allowed.set (or both at the same",
             " time) have been provided, exiting!")
     }
+    if (!is.null(filt_feat(siamcat, verbose=0)) | !is.null(norm_feat(siamcat, verbose=0))){
+        warning(
+            "Selcting samples may affect the results of feature filtering and normalization."
+        )
+        if ( !isTRUE(keep.preprocessing) ) {
+            warning(
+                "For sanity, results from previous analyses (e.g. filtered and normalised features) will be removed!"
+            )
+            siamcat <- siamcat(
+                phyloseq=physeq(siamcat),
+                label=label(siamcat),
+                validate=FALSE, verbose=0
+            )
+        } else {
+            warning(
+                "Keeping results of preprocessing as requested (feature filtering, normalisation). Proceed only if you know what you are doing!"
+            )
+        }
+    }
     if (!is.null(data_split(siamcat, verbose=0)) |
         !is.null(eval_data(siamcat, verbose=0)) |
         !is.null(models(siamcat, verbose=0))){
-            warning("The machine learning pipeline has to be run again ",
-                "after filtering the samples")
+            warning("The machine learning pipeline has to be run again after filtering the samples")
     }
-    if (!is.null(filt_feat(siamcat, verbose=0)) |
-        !is.null(norm_feat(siamcat, verbose=0))){
-            warning("Selcting samples may affect the results of feature ",
-                "filtering and normalization\nFor sanity, results from ",
-                "previous analyses (e.g. filtered features) will be removed!")
-        siamcat <- siamcat(
-            phyloseq=physeq(siamcat),
-            label=label(siamcat),
-            validate=FALSE, verbose=0)
-    }
-
-
 
     if (verbose > 2)
         message("+++ checking allowed values")
@@ -148,8 +157,13 @@ select.samples <- function(siamcat, filter, allowed.set = NULL,
     s.names <- rownames(meta(siamcat))[s.idx]
 
     # prune phyloseq object
-    physeq(siamcat) <-
-        prune_samples(x = physeq(siamcat), samples = s.names)
+    physeq(siamcat) <- prune_samples(x = physeq(siamcat), samples = s.names)
+    if (!is.null(filt_feat(siamcat, verbose=0))){
+        filt_feat(siamcat)$filt.feat <- filt_feat(siamcat)$filt.feat[,s.names]
+    }
+    if (!is.null(norm_feat(siamcat, verbose=0))){
+        norm_feat(siamcat)$norm.feat <- norm_feat(siamcat)$norm.feat[,s.names]
+    }
     # filter label object
     siamcat <- filter.label(siamcat, s.names, verbose = verbose)
 
