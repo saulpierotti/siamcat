@@ -529,6 +529,8 @@ check.siamcat <- function(object){
 #' @slot label list containing the label information for the samples and
 #' some metadata about the label, created by \link{create.label} or when
 #' creating the \link{siamcat-class} object by calling \link{siamcat}
+#' 
+#' @slot raw_count vector containing the total raw counts for the samples
 #'
 #' @slot filt_feat list containing the filtered features as matrix and
 #' the list of filtering parameters, created by calling the
@@ -565,6 +567,8 @@ setClass(
     representation(
         phyloseq = "phyloseq",
         label = "list",
+        raw_count = "vector",
+        raw_feat = "matrix",
         filt_feat = "list",
         associations = "list",
         norm_feat = "list",

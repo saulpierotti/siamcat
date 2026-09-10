@@ -41,7 +41,6 @@
 #' siamcat <- siamcat(feat=feat, label=label, validate=FALSE)
 #' siamcat <- validate.data(siamcat, verbose=2)
 validate.data <- function(siamcat, verbose = 1) {
-
     # check if filt_feat or norm_feat is present
     # if yes, throw an error
     if (!is.null(filt_feat(siamcat, verbose=0)) |
@@ -54,6 +53,7 @@ validate.data <- function(siamcat, verbose = 1) {
     label <- label(siamcat)
     feat  <- orig_feat(siamcat)
     meta  <- meta(siamcat)
+    raw_count <- raw_count(siamcat)
     s.time <- proc.time()[3]
 
     # Check if features contain any missing values, i.e. no NAs
@@ -75,6 +75,7 @@ validate.data <- function(siamcat, verbose = 1) {
     # check and re-order features
     s.removed <- ncol(feat) - length(s.intersect)
     orig_feat(siamcat) <- feat[,s.intersect]
+    raw_count(siamcat) <- raw_count[s.intersect]
     feat <- orig_feat(siamcat)
     if (verbose > 1 & s.removed != 0){
         msg <- paste0("+ Removed ", s.removed,
@@ -132,6 +133,26 @@ validate.data <- function(siamcat, verbose = 1) {
         }
         stopifnot(all(names(label$label) == rownames(meta(siamcat))))
     }
+
+    # adjust raw counts
+    raw_count <- raw_count(siamcat)
+    if (verbose > 2)
+        message("+++ checking overlap between samples and raw counts")
+    if (!all(names(label$label) %in% names(raw_count))){
+        stop('Raw counts is not available for all samples! Exiting...')
+    }
+    s.intersect <- intersect(names(label$label), names(raw_count))
+    # check and re-order raw_count
+    s.removed <- length(raw_count) - length(s.intersect)
+    raw_count(siamcat) <- raw_count[s.intersect]
+    if (verbose > 1 & s.removed != 0){
+        msg <- paste0("+ Removed ", s.removed, 
+            " samples from the raw counts...")
+        message(msg)
+    }
+    stopifnot(all(names(label$label) == names(raw_count(siamcat))))
+    ret <- validate.raw.counts(raw_count(siamcat), colnames(orig_feat(siamcat)))
+    
     e.time <- proc.time()[3]
     if (verbose > 1){
         msg <- paste("+ finished validate.data in", 

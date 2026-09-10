@@ -81,8 +81,10 @@ select.samples <- function(siamcat, filter, allowed.set = NULL,
                 "For sanity, results from previous analyses (e.g. filtered and normalised features) will be removed!"
             )
             siamcat <- siamcat(
-                phyloseq=physeq(siamcat),
+                feat=tryCatch({raw_feat(siamcat_obj)}, error = function(e){orig_feat(siamcat_obj)}),
+                meta=meta(siamcat_obj),
                 label=label(siamcat),
+                taxa=tax_table(siamcat@phyloseq),
                 validate=FALSE, verbose=0
             )
         } else {
@@ -158,6 +160,7 @@ select.samples <- function(siamcat, filter, allowed.set = NULL,
 
     # prune phyloseq object
     physeq(siamcat) <- prune_samples(x = physeq(siamcat), samples = s.names)
+    raw_count(siamcat) <- raw_count(siamcat)[s.names]
     if (!is.null(filt_feat(siamcat, verbose=0))){
         filt_feat(siamcat)$filt.feat <- filt_feat(siamcat)$filt.feat[,s.names]
     }

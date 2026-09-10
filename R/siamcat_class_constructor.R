@@ -163,6 +163,11 @@ siamcat <- function(..., feat=NULL, label=NULL, taxonomy=NULL, meta=NULL, phylos
     feat <- validate.features(feat)
     taxonomy <- validate.taxonomy(taxonomy, feat)
     meta <- validate.metadata(meta, feat)
+
+    # make relative abundances and save totals
+    raw_count <- validate.raw.counts(colSums(feat), colnames(feat))
+    feat <- otu_table(apply(feat, 2, function(x){x/sum(x)}), taxa_are_rows = TRUE)
+    feat <- validate.features(feat)
     
     # make Phyloseq object properly
     if (any(vapply(names(other.args), is.component.class, "phyloseq",
@@ -187,6 +192,7 @@ siamcat <- function(..., feat=NULL, label=NULL, taxonomy=NULL, meta=NULL, phylos
     }
 
     other.args$label <- label
+    other.args$raw_count <- raw_count
 
     # any other slots
     other.args <-
@@ -220,10 +226,10 @@ get.component.classes <- function(class) {
     # names to match getSlots / splat
 
     #slot names
-    component.classes.siamcat <-
-        c(
+    component.classes.siamcat <- c(
             "phyloseq",
             "label",
+            "raw_count",
             "filt_feat",
             "associations",
             "norm_feat",
@@ -233,22 +239,9 @@ get.component.classes <- function(class) {
             "eval_data",
             "ordination",
             "versions"
-        )
+    )
     #class names
-    names(component.classes.siamcat) <-
-        c(
-            "phyloseq",
-            "label",
-            "filt_feat",
-            "associations",
-            "norm_feat",
-            "data_split",
-            "model_list",
-            "pred_matrix",
-            "eval_data",
-            "ordination",
-            "versions"
-        )
+    names(component.classes.siamcat) <- component.classes.siamcat
 
     #slot names
     component.classes.phyloseq <-
@@ -256,12 +249,13 @@ get.component.classes <- function(class) {
             "tax_table", "refseq")
 
     #class names
-    names(component.classes.phyloseq) <-
-        c("otu_table",
-            "sample_data",
-            "phylo",
-            "taxonomyTable",
-            "XStringSet")
+    names(component.classes.phyloseq) <- c(
+        "otu_table",
+        "sample_data",
+        "phylo",
+        "taxonomyTable",
+        "XStringSet"
+    )
 
     if (class == "siamcat") {
         return(component.classes.siamcat)
@@ -326,6 +320,19 @@ validate.features <- function(feat){
         feat <- otu_table(feat, taxa_are_rows=TRUE)
         return(feat)
     }
+}
+
+# check raw_count object
+#' @keywords internal
+validate.raw.counts <- function(raw_counts, sample_names) {
+    if (!is.numeric(raw_counts)) stop("Internal error: raw_counts is not numeric.")
+    if (!is.vector(raw_counts)) stop("Internal error: raw_counts must be a vector.")
+    if (!all(sample_names == names(raw_counts))) stop("Internal error: raw_counts names do not match sample names")
+    # do not save counts for relative abundances but keep the vector
+    if (!any(is.na(raw_counts))) {
+        if (all((raw_counts - 1) < 1e-3)) raw_counts[] <- NA
+    } else raw_counts[] <- NA
+    return(raw_counts)
 }
 
 # check label object
@@ -395,7 +402,7 @@ validate.taxonomy <- function(tax, feat){
    }
    if (is.data.frame(tax)){
        if (is(tax, 'tbl')){
-           msg <- paste0("Tibbles are not supported. Metadata needs to be",
+           msg <- paste0("Tibbles are not supported. Taxonomy needs to be",
                        " a dataframe with rownames!")
            stop(msg)
        }

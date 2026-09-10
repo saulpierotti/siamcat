@@ -244,6 +244,91 @@ setMethod("label", "siamcat", function(siamcat, verbose=1) {
     accessSlot(siamcat, "label", verbose)
 })
 
+################################################################################
+#' @title Retrieve the raw_counts from a SIAMCAT object
+#'
+#' @description Retrieve the raw (total per sample) counts from a SIAMCAT object
+#'
+#' @details This function will retrieve the total count information from a
+#' SIAMCAT object. It is a number per sample in a named vector.
+#'
+#' @usage raw_count(siamcat, verbose=1)
+#'
+#' @param siamcat (Required). A \link{siamcat-class} object
+#'
+#' @param verbose integer, if the slot is empty, should a message be printed?
+#'      values can be either \code{0} (no output) or \code{1} (print message)
+#'
+#' @return The raw_count vector or NULL.
+#'
+#' @export
+#'
+#' @docType methods
+#'
+#' @examples
+#' data(siamcat_example)
+#' temp <- raw_count(siamcat_example)
+#' temp
+setGeneric("raw_count", function(siamcat, verbose=1)
+    standardGeneric("raw_count"))
+#' @aliases raw_count
+setMethod("raw_count", "siamcat", function(siamcat, verbose=1) {
+    accessSlot(siamcat, "raw_count", verbose)
+})
+
+###############################################################################
+#' @title Retrieve the information stored in the \code{raw_feat} slot within
+#' a SIAMCAT object
+#'
+#' @description Function to retrieve the information stored in the
+#' \code{raw_feat} slot within a SIAMCAT object
+#'
+#' @usage raw_feat(siamcat, verbose=1)
+#'
+#' @param siamcat (Required). An instance of \link{siamcat-class}
+#' that contains filtered features
+#'
+#' @param verbose integer, if the slot is empty, should a message be printed?
+#'      values can be either \code{0} (no output) or \code{1} (print message)
+#'
+#' @details The function will return a list containing the information stored
+#' in the \code{raw_feat} slot of a SIAMCAT object. This list contains:
+#' \itemize{
+#' \item \code{raw.feat} - raw features as matrix, see
+#' \link{get.filt_feat.matrix}
+#' \item \code{filt.param} - parameters used for feature filtering, see
+#' \link{get.filt_feat.matrix}
+#' }
+#'
+#' @return The list stored in the \code{filt_feat} slot of the SIAMCAT object
+#' or \code{NULL}
+#'
+#' @export
+#' @keywords internal
+#'
+#' @rdname filt_feat-methods
+#'
+#' @docType methods
+#'
+#' @examples
+#' data(siamcat_example)
+#' temp <- filt_feat(siamcat_example)
+#' names(temp)
+setGeneric("raw_feat", function(siamcat, verbose=1)
+    standardGeneric("raw_feat"))
+setMethod("raw_feat", "siamcat", function(siamcat, verbose=1) {
+    if (verbose > 1) {
+        message("+ recalculating raw feature matrix from relative abundances")
+    }
+    raw_c <- raw_count(siamcat, verbose = FALSE)
+    feat <- orig_feat(siamcat)
+    if (any(is.na(raw_c))) stop("Error: total per-sample raw_counts are missing.")
+    if (!all(colnames(feat) == names(raw_c))) stop("Error: sample name mismatch.")
+    raw_feat <- sweep(feat, MARGIN = 2, STATS = raw_c, FUN = "*")
+    dimnames(raw_feat) <- dimnames(feat)
+    return(raw_feat)
+})
+
 ###############################################################################
 #' @title Retrieve the information stored in the \code{filt_feat} slot within
 #' a SIAMCAT object

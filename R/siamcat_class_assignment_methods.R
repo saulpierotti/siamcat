@@ -62,6 +62,30 @@ setMethod("orig_feat<-", c("siamcat", "otu_table"), function(x, value) {
 })
 
 ################################################################################
+#' Assign a new raw_count object to \code{x}
+#'
+#' @usage raw_count(x) <- value
+#'
+#' @param x an object of class \link{siamcat-class}
+#' @param a named vector of total per sample raw counts
+#' @export
+#' @docType methods
+#' @return none
+#' @keywords internal
+#'
+#' @examples
+#' data(siamcat_example)
+#' raw_count(siamcat_example) <- raw_count(siamcat_example)
+setGeneric("raw_count<-", function(x, value)
+    standardGeneric("raw_count<-"))
+#' @rdname assign-meta
+#' @aliases meta<-
+setMethod("raw_count<-", c("siamcat", "ANY"), function(x, value) {
+    x@raw_count <- value
+    return(x)
+})
+
+################################################################################
 #' Assign a new sam_data object to \code{x}
 #'
 #' @usage meta(x) <- value
