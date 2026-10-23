@@ -12,7 +12,7 @@
 #' @usage check.associations(siamcat, formula="feat~label", test='wilcoxon', 
 #' alpha=0.05, mult.corr="fdr", log.n0=1e-06, pr.cutoff=1e-06, 
 #' probs.fc=seq(.1, .9, .05), paired=NULL, feature.type='filtered', 
-#' select.feats=NULL, verbose = 1)
+#' select.feats=NULL, quantile.norm.label=FALSE, verbose = 1)
 #'
 #' @param siamcat object of class \link{siamcat-class}
 #' 
@@ -57,6 +57,10 @@
 #' function will stop with an error. This is useful to restrict testing to
 #' a pre-specified set of features (e.g. features of interest) without
 #' having to re-filter or re-normalize the whole SIAMCAT object.
+#'
+#' @param quantile.norm.label boolean, should a continuous label be quantile
+#' normalized (rank-based inverse normal transformation) before testing? Only
+#' applicable to regression problems, defaults to \code{FALSE}
 #' 
 #' @param verbose integer, control output: \code{0} for no output at all, 
 #' \code{1} for only information about progress and success, \code{2} for 
@@ -113,6 +117,15 @@
 #' character vector of feature names via \code{select.feats}. All names
 #' must be found among the rownames of the feature matrix corresponding to
 #' \code{feature.type}, otherwise the function stops with an error.
+#'
+#' @section Quantile normalization of the label:
+#' For regression problems, setting \code{quantile.norm.label=TRUE} replaces
+#' the label with \code{qnorm((rank(label) - 0.5) / n)} (ties get the
+#' average rank) before testing. This makes the label follow a standard
+#' normal distribution, which can help when the label is skewed or has
+#' outliers. The Spearman correlation is unaffected, since the transformation
+#' preserves the ranks, but \code{beta} is then on the scale of the
+#' transformed label.
 #' 
 #' @return object of class \link{siamcat-class} with the slot 
 #' \code{associations} filled
@@ -149,7 +162,7 @@
 check.associations <- function(siamcat, formula="feat~label",
     test=NULL, alpha=0.05, mult.corr="fdr", log.n0=1e-06, pr.cutoff=1e-06,
     probs.fc=seq(.1, .9, .05), paired=NULL, feature.type='normalized',
-    select.feats=NULL,
+    select.feats=NULL, quantile.norm.label=FALSE,
     verbose = 1) {
         canonical_formula_obj <- as.formula("feat ~ label")
 
@@ -189,6 +202,12 @@ check.associations <- function(siamcat, formula="feat~label",
             if (test == 'wilcoxon'){
                 stop("Cannot test a SIAMCAT object with regression label using the Wilcoxon test.")
             }
+        }
+        if (!isTRUE(quantile.norm.label) && !isFALSE(quantile.norm.label)){
+            stop("quantile.norm.label must be either TRUE or FALSE")
+        }
+        if (quantile.norm.label && label$type != 'CONTINUOUS'){
+            stop("quantile.norm.label can only be used with continuous labels")
         }
         
         # set NULL test
@@ -338,7 +357,8 @@ check.associations <- function(siamcat, formula="feat~label",
             log.n0=log.n0, pr.cutoff=pr.cutoff,
             test=test, feature.type=feature.type,
             paired=paired, probs.fc=probs.fc,
-            select.feats=select.feats
+            select.feats=select.feats,
+            quantile.norm.label=quantile.norm.label
         )
 
         # if only alpha changed no need to rerun, just update the param.list
@@ -417,6 +437,11 @@ analyze.markers <- function(feat, feat_orig, meta, label, param.list){
         colnames(df.temp) <- names(meta)
         rownames(df.temp) <- rownames(meta)
         df.temp$label <- label$label[rownames(df.temp)]
+    }
+
+    if (isTRUE(param.list$quantile.norm.label)){
+        df.temp$label <- qnorm(
+            (rank(df.temp$label, na.last="keep") - 0.5) / sum(!is.na(df.temp$label)))
     }
 
     if (label$type=='CONTINUOUS'){

@@ -21,7 +21,7 @@
 #' 
 #' @param shape.by string, name of a column in the sample metadata to use
 #' for setting the shape of points. If \code{NULL} (default), points are all of the same shape.
-#' Must be a categorical variable.
+#' Must be a categorical variable with at most 5 values (filled shapes 21-25).
 #'
 #' @param name.shape.by string, label for the shape legend. If \code{NULL}
 #' (default), the value of \code{shape.by} is used.
@@ -35,6 +35,8 @@
 #' The order of the names in the vector determines the order of the labels in the legend.
 #' 
 #' @param alpha numeric, transparency of the points
+#'
+#' @param point.size numeric, size of the points, defaults to \code{1.5}
 #' 
 #' @param palette for continuous \code{color.by}: a ColorBrewer palette name,
 #' defaults to \code{"RdBu"}. For categorical \code{color.by}: a vector of
@@ -79,7 +81,7 @@
 # called like this to differentiate from phyloseq::plot.ordination
 plot.ordination.siamcat <- function(
     siamcat, color.by = NULL, shape.by = NULL, name.color.by = NULL, name.shape.by = NULL, font.size = 14,
-    palette = NULL, rename.values = NULL, alpha = 0.6,
+    palette = NULL, rename.values = NULL, alpha = 0.6, point.size = 1.5,
     fn.plot = NULL, verbose = 1, width = 7, height = 6, title = NULL
 ) { 
     if (verbose > 1) message("+++ Starting plot.ordination")
@@ -114,10 +116,11 @@ plot.ordination.siamcat <- function(
         if (! (shape.by %in% colnames(meta))) {
             stop("shape.by column not found in metadata.")
         }
-        if (length(unique(meta[[shape.by]])) > 15) {
-            stop("shape.by column has more than 15 unique values.")
+        # filled shapes (21-25) so that fill and alpha apply
+        if (length(unique(meta[[shape.by]])) > 5) {
+            stop("shape.by column has more than 5 unique values.")
         }
-        shapes <- 1:length(unique(meta[[shape.by]]))
+        shapes <- 20 + 1:length(unique(meta[[shape.by]]))
         set_shapes <- TRUE
         if (is.null(name.shape.by)) name.shape.by <- shape.by
     } else {
@@ -125,23 +128,37 @@ plot.ordination.siamcat <- function(
     }
 
     p <- phyloseq::plot_ordination(temp.phyloseq, ord, color=color.by, shape=shape.by) +
-        labs(x=xlab, y=ylab, color=name.color.by, shape=name.shape.by)
+        labs(x=xlab, y=ylab, fill=name.color.by, shape=name.shape.by)
+
+    # filled shapes: color.by sets the fill, with a thin dark outline
+    p$mapping$colour <- NULL
+    if (!is.null(color.by)) {
+        p <- p + aes(fill=.data[[color.by]])
+    } else {
+        p$layers[[1]]$aes_params$fill <- "black"
+    }
+    p$layers[[1]]$aes_params$colour <- "grey20"
+    p$layers[[1]]$aes_params$stroke <- 0.3
 
     # override the shape
     if (is.null(shape.by)) {
-        p$layers[[1]]$aes_params$shape <- 19
+        p$layers[[1]]$aes_params$shape <- 21
     }
 
     # override alpha
     if (!(is.numeric(alpha) && length(alpha) == 1 && alpha <= 1 && alpha >= 0)) stop ("Value for parameter alpha must be a single float between 0 and 1.")
     p$layers[[1]]$aes_params$alpha <- alpha
 
+    # override point size
+    if (!(is.numeric(point.size) && length(point.size) == 1 && point.size > 0)) stop ("Value for parameter point.size must be a single positive number.")
+    p$layers[[1]]$aes_params$size <- point.size
+
     # set color palette
     if (!is.null(color.by)) {
         meta_col <- meta[[color.by]]
         if (is.numeric(meta_col)) {
             if (is.null(palette)) palette <- "RdBu"
-            p <- p + scale_color_distiller(palette = palette)
+            p <- p + scale_fill_distiller(palette = palette)
         } else {
             if (is.null(rename.values)) {
                 labels <- unique(meta_col)
@@ -162,12 +179,18 @@ plot.ordination.siamcat <- function(
                     palette <- RColorBrewer::brewer.pal(n = length(unique(meta_col)), name = "Set2")
                 }
             }
-            p <- p + scale_color_manual(values = palette, labels = labels, breaks = names(labels))
+            p <- p + scale_fill_manual(values = palette, labels = labels, breaks = names(labels))
         }
     }
 
     if (set_shapes){
-        p <- p + scale_shape_manual(values = shapes)
+        # without this the shape legend keys would be hollow
+        p <- p + scale_shape_manual(values = shapes) +
+            guides(shape = guide_legend(override.aes = list(fill = "grey60")))
+    }
+    if (!is.null(color.by) && !is.numeric(meta[[color.by]])) {
+        # fill legend keys default to a non-fillable shape
+        p <- p + guides(fill = guide_legend(override.aes = list(shape = 21)))
     }
 
     p <- p + theme_siamcat(font.size)

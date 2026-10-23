@@ -25,8 +25,8 @@ reset.label <- function(siamcat, label=NULL, ...) {
         label <- create.label(label, meta=meta, ...)
     } else if (is.vector(label)) {
         label <- create.label(label, ...)
-    } else {
-        stop("The parameter label is not a charachter vector of length 1 or a vector.")
+    } else if (!is.null(label)) {
+        stop("The parameter label is not a charachter vector of length 1 or a vector and it is not NULL.")
     }
     
     sc <- siamcat(feat = otu_table, label = label, meta = meta, taxonomy = taxa)
