@@ -6,7 +6,7 @@
 #' object's ordination slot. Optionally also tests homogeneity of group
 #' dispersions via \code{\link[vegan]{betadisper}}.
 #'
-#' @usage test.ordination(siamcat, group.by, permutations=999,
+#' @usage test.ordination(siamcat, group.by, covariates=NULL, permutations=999,
 #' test.homogeneity=TRUE, verbose=1)
 #'
 #' @param siamcat object of class \link{siamcat-class}, must already contain
@@ -14,6 +14,12 @@
 #'
 #' @param group.by string, name of a single column in the sample metadata
 #' to test group differences for (e.g. \code{"Group"}).
+#'
+#' @param covariates character vector, names of columns in the sample
+#' metadata to adjust for (e.g. sequencing depth). Each term is tested
+#' marginally, i.e. given all other terms (\code{by="margin"} in
+#' \code{\link[vegan]{adonis2}}). The dispersion test is not adjusted.
+#' Defaults to \code{NULL}
 #'
 #' @param permutations integer, number of permutations for
 #' \code{\link[vegan]{adonis2}} and \code{\link[vegan]{permutest}},
@@ -39,7 +45,7 @@
 #' \code{betadisper} object) and \code{permtest} (the dispersion
 #' permutation test result)
 
-test.ordination <- function(siamcat, group.by, permutations=999,
+test.ordination <- function(siamcat, group.by, covariates=NULL, permutations=999,
     test.homogeneity=TRUE, verbose=1){
 
     if (verbose > 1) message("+++ Starting test.ordination")
@@ -65,10 +71,17 @@ test.ordination <- function(siamcat, group.by, permutations=999,
     } else if (!(group.by %in% colnames(meta))) {
         stop("group.by column(s) not found in sample data.")
     }
+    if (!all(covariates %in% colnames(meta))) {
+        stop("covariates column(s) not found in sample data.")
+    }
+    if (group.by %in% covariates) {
+        stop("group.by cannot also be a covariate.")
+    }
 
     if (verbose > 1) message("+++ Running PERMANOVA (adonis2)")
-    form <- as.formula(paste("dist_matrix ~", group.by))
-    adonis.res <- vegan::adonis2(form, data = meta, permutations = permutations)
+    form <- as.formula(paste("dist_matrix ~", paste(c(covariates, group.by), collapse=" + ")))
+    # marginal tests: each term is tested given all the others
+    adonis.res <- vegan::adonis2(form, data = meta, permutations = permutations, by = "margin")
 
     if (verbose > 0) {
         message("+++ PERMANOVA result:")
