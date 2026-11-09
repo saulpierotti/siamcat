@@ -22,13 +22,21 @@
 #' ggsave is allowed). If \code{fn.plot} is \code{NULL}, the plot will only
 #' be returned as a ggplot object.
 #' 
-#' @ param max.feat integer, maximum number of features to plot. Defaults to 30.
-#' 
-#' @ param max.pos.feat integer, maximum number of positively associated features to plot. Defaults to \code{NULL}.
-#' If set, this parameter overrides max.feat.
-#' 
-#' @ param max.neg.feat integer, maximum number of negatively associated features to plot. Defaults to \code{NULL}.
-#' If set, this parameter overrides max.feat.
+#' @param max.feat integer, maximum number of features to plot, keeping those
+#' with the lowest adjusted p-values. Defaults to 30.
+#' Ignored if both \code{max.pos.feat} and \code{max.neg.feat} are set.
+#' If \code{max.feat}, \code{max.pos.feat} and \code{max.neg.feat} are all
+#' \code{NULL}, all significant features are plotted.
+#'
+#' @param max.pos.feat integer, maximum number of positively associated features to plot,
+#' keeping those with the lowest adjusted p-values. Defaults to \code{NULL}.
+#' If only \code{max.neg.feat} is set, this defaults to
+#' \code{max(max.feat - max.neg.feat, 0)}, which requires \code{max.feat} not to be \code{NULL}.
+#'
+#' @param max.neg.feat integer, maximum number of negatively associated features to plot,
+#' keeping those with the lowest adjusted p-values. Defaults to \code{NULL}.
+#' If only \code{max.pos.feat} is set, this defaults to
+#' \code{max(max.feat - max.pos.feat, 0)}, which requires \code{max.feat} not to be \code{NULL}.
 #'
 #' @param color.scheme valid R color scheme or vector of valid R colors (must
 #' be of length 2 for positive and negative associations),
@@ -188,15 +196,17 @@ forest.plot <- function(
         }
     )
 
-    if (is.null(max.feat) && (is.null(max.pos.feat) || is.null(max.neg.feat))) {
-        stop("max.feat cannot be NULL if either max.pos.feat and max.neg.feat are also NULL.")
-        if (length(max.feat) != 1) stop("max.feat must be a single integer value.")
-    }
-    if (is.null(max.pos.feat) && is.null(max.neg.feat)) {
+    if (!is.null(max.feat) && length(max.feat) != 1) stop("max.feat must be a single integer value.")
+    if (!is.null(max.pos.feat) && length(max.pos.feat) != 1) stop("max.pos.feat must be a single integer value.")
+    if (!is.null(max.neg.feat) && length(max.neg.feat) != 1) stop("max.neg.feat must be a single integer value.")
+
+    if (is.null(max.feat) && is.null(max.pos.feat) && is.null(max.neg.feat)) {
+        message("max.feat, max.pos.feat and max.neg.feat are all NULL. All significant features will be plotted.")
+    } else if (is.null(max.feat) && xor(is.null(max.pos.feat), is.null(max.neg.feat))) {
+        stop("max.feat cannot be NULL if only one of max.pos.feat and max.neg.feat are set.")
+    } else if (is.null(max.pos.feat) && is.null(max.neg.feat)) {
         associations <- head(associations, max.feat)
     } else {
-        if (!is.null(max.pos.feat) && length(max.pos.feat) != 1) stop("max.pos.feat must be a single integer value.")
-        if (!is.null(max.neg.feat) && length(max.neg.feat) != 1) stop("max.neg.feat must be a single integer value.")
         if (is.null(max.pos.feat)) {
             max.pos.feat <- max(max.feat - max.neg.feat, 0)
         } else if (is.null(max.neg.feat)) {
