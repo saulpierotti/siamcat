@@ -8,7 +8,7 @@
 #' @name siamcat
 #' @description Function to construct an object of class \link{siamcat-class}
 #' @usage siamcat(..., feat=NULL, label=NULL, meta=NULL,
-#'     phyloseq=NULL, validate=TRUE, verbose=3)
+#'     phyloseq=NULL, rel.ab=TRUE, validate=TRUE, verbose=3)
 #' @param ... additional arguments
 #' @param feat feature information for SIAMCAT (see details)
 #' @param label label information for SIAMCAT (see details)
@@ -16,6 +16,12 @@
 #' @param meta (optional) metadata information for SIAMCAT (see details)
 #' @param phyloseq (optional) a phyloseq object for the creation of an SIAMCAT
 #' object (see details)
+#' @param rel.ab boolean, should the features be converted to relative
+#' abundances (each sample divided by its column sum, totals kept in
+#' \code{raw_count})? Set to \code{FALSE} to keep already-normalised values
+#' (e.g. RPKM) as they are; \code{raw_count} is then left empty and the
+#' compositional-data checks in downstream functions only pass on
+#' \code{feature.type='normalized'}. Defaults to \code{TRUE}
 #' @param validate boolean, should the newly constructed SIAMCAT object be
 #' validated? defaults to TRUE (\strong{we strongly recommend against
 #' setting this parameter to FALSE})
@@ -90,8 +96,12 @@
 #'     label='Group',
 #'     case='CRC')
 siamcat <- function(..., feat=NULL, label=NULL, taxonomy=NULL, meta=NULL, phyloseq=NULL,
-        validate=TRUE, verbose=3) {
-    
+        rel.ab=TRUE, validate=TRUE, verbose=3) {
+
+    if (!isTRUE(rel.ab) && !isFALSE(rel.ab)){
+        stop("rel.ab must be either TRUE or FALSE")
+    }
+
     if (is.null(phyloseq) && is.null(feat)){
         msg <- paste0('SIAMCAT needs either a feature matrix or a phyloseq',
             ' object!!! Exiting...')
@@ -164,10 +174,16 @@ siamcat <- function(..., feat=NULL, label=NULL, taxonomy=NULL, meta=NULL, phylos
     taxonomy <- validate.taxonomy(taxonomy, feat)
     meta <- validate.metadata(meta, feat)
 
-    # make relative abundances and save totals
-    raw_count <- validate.raw.counts(colSums(feat), colnames(feat))
-    feat <- otu_table(apply(feat, 2, function(x){x/sum(x)}), taxa_are_rows = TRUE)
-    feat <- validate.features(feat)
+    if (rel.ab){
+        # make relative abundances and save totals
+        raw_count <- validate.raw.counts(colSums(feat), colnames(feat))
+        feat <- otu_table(apply(feat, 2, function(x){x/sum(x)}), taxa_are_rows = TRUE)
+        feat <- validate.features(feat)
+    } else {
+        # keep features as they are; totals are not meaningful, so no raw_count
+        raw_count <- validate.raw.counts(
+            setNames(rep(NA_real_, ncol(feat)), colnames(feat)), colnames(feat))
+    }
     
     # make Phyloseq object properly
     if (any(vapply(names(other.args), is.component.class, "phyloseq",

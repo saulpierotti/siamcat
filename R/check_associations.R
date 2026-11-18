@@ -427,7 +427,7 @@ analyze.markers <- function(feat, feat_orig, meta, label, param.list){
         }
     }
 
-    feat <- feat[,names(label$label)]
+    feat <- feat[,names(label$label), drop=FALSE]
     
     if (is.null(meta)){
         df.temp <- data.frame(label=label$label)
